@@ -533,7 +533,7 @@ details.kvd > summary { margin-bottom: 4px; }
         <div class="fields">
           <div class="field">
             <label for="su-v">Vorschuss pro Zahlung</label>
-            <div class="input unit"><input id="su-v" type="text" inputmode="decimal" placeholder="2.400" autocomplete="off"><span class="u">€</span></div>
+            <div class="input unit"><input id="su-v" type="text" inputmode="decimal" placeholder="500" autocomplete="off"><span class="u">€</span></div>
           </div>
           <div class="field">
             <label for="su-a">Zahlungen pro Jahr</label>
@@ -1486,7 +1486,7 @@ details.kvd > summary { margin-bottom: 4px; }
   $("#setup").addEventListener("submit", function (e) {
     e.preventDefault();
     var v = parseEuro($("#su-v").value), a = parsePct($("#su-a").value);
-    if (!(v > 0)) { $("#su-msg").textContent = "Vorschuss als Zahl eingeben, z. B. 2.400."; return; }
+    if (!(v > 0)) { $("#su-msg").textContent = "Vorschuss als Zahl eingeben, z. B. 500."; return; }
     if (!(a >= 1 && a <= 14)) { $("#su-msg").textContent = "Zahlungen pro Jahr: 1 bis 14."; return; }
     $("#su-msg").textContent = "";
     var next = {};
