@@ -1,0 +1,1728 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Provision</title>
+<meta name="description" content="Provisionstracker: Verkäufe und Marktpreiseinschätzungen erfassen, Staffel und Break-even im Blick. Daten bleiben auf dem eigenen Gerät.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Provision">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#F2F5F4" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0E1618" media="(prefers-color-scheme: dark)">
+<link rel="preload" href="fonts/public-sans-400.woff2" as="font" type="font/woff2" crossorigin>
+<style>:root{color-scheme:light}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<style>
+@font-face { font-family: "Public Sans"; font-style: normal; font-weight: 400; font-display: swap; src: url("fonts/public-sans-400.woff2") format("woff2"); }
+@font-face { font-family: "Public Sans"; font-style: normal; font-weight: 500; font-display: swap; src: url("fonts/public-sans-500.woff2") format("woff2"); }
+@font-face { font-family: "Public Sans"; font-style: normal; font-weight: 600; font-display: swap; src: url("fonts/public-sans-600.woff2") format("woff2"); }
+@font-face { font-family: "Public Sans"; font-style: normal; font-weight: 700; font-display: swap; src: url("fonts/public-sans-700.woff2") format("woff2"); }
+@font-face { font-family: "Source Serif 4"; font-style: normal; font-weight: 200 900; font-display: swap; src: url("fonts/source-serif-4-opsz.woff2") format("woff2"); }
+</style>
+</head>
+<body>
+<style>
+/* Layout: Kopf mit Gesamtstand → Erfassung (Verkauf | Bewertung) | Provisionsstaffel → Zeitraum → Verkaufsjournal → Bewertungsjournal */
+:root {
+  --bg: #F2F5F4;
+  --surface: #FFFFFF;
+  --surface-2: #E8EEEC;
+  --ink: #13262B;
+  --muted: #586A6D;
+  --line: #D4DDDB;
+  --primary: #174B55;
+  --primary-ink: #FFFFFF;
+  --brass: #946410;
+  --brass-soft: #F4E9D2;
+  --pos: #1B6E46;
+  --pos-soft: #DCEFE4;
+  --neg: #AC3324;
+  --focus: #2A7A86;
+  --seg1: #DCE5E3;
+  --seg2: #CFDCDA;
+  --seg3: #C2D3D1;
+  --f-display: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --f-body: "Public Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --r: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0E1618; --surface: #152124; --surface-2: #1C2B2F; --ink: #E2EBE9; --muted: #95A7A9; --line: #2A3B3F;
+    --primary: #74BCBF; --primary-ink: #0C1517; --brass: #DDB164; --brass-soft: #2F2817;
+    --pos: #63C592; --pos-soft: #183528; --neg: #F28D7F; --focus: #86CDD1;
+    --seg1: #1F3034; --seg2: #24383C; --seg3: #2A4146;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0E1618; --surface: #152124; --surface-2: #1C2B2F; --ink: #E2EBE9; --muted: #95A7A9; --line: #2A3B3F;
+  --primary: #74BCBF; --primary-ink: #0C1517; --brass: #DDB164; --brass-soft: #2F2817;
+  --pos: #63C592; --pos-soft: #183528; --neg: #F28D7F; --focus: #86CDD1;
+  --seg1: #1F3034; --seg2: #24383C; --seg3: #2A4146;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: var(--f-body); font-size: 15px; line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+.wrap {
+  max-width: 1180px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 28px 56px;
+  display: grid; gap: 20px;
+}
+.num { font-variant-numeric: tabular-nums; }
+h1, h2 { font-family: var(--f-display); font-weight: 600; margin: 0; text-wrap: balance; letter-spacing: -0.01em; }
+h1 { font-size: clamp(28px, 4vw, 38px); line-height: 1.1; }
+h2 { font-size: 21px; line-height: 1.2; }
+.eyebrow { margin: 0 0 6px; font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.micro { font-size: 13px; color: var(--muted); margin: 0; }
+.hint { font-size: 12px; color: var(--muted); }
+.vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* Zähler ganz oben */
+.counts { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.counts span {
+  display: inline-flex; align-items: baseline; gap: 7px; padding: 6px 16px; border-radius: 999px;
+  background: var(--surface); border: 1px solid var(--line); font-size: 13px; font-weight: 600; color: var(--muted);
+}
+.counts b { font-family: var(--f-display); font-size: 22px; line-height: 1; color: var(--ink); font-variant-numeric: tabular-nums; }
+
+/* Kopf */
+.top { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-end; justify-content: space-between; }
+.top .brand { min-width: 0; }
+.top .brand p.lede { margin: 8px 0 0; color: var(--muted); max-width: 52ch; }
+.total { min-width: 0; text-align: right; padding: 14px 0 12px 22px; border-left: 3px solid var(--brass); }
+.total .label { display: block; font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.total output {
+  display: block; font-family: var(--f-display); font-weight: 600;
+  font-size: clamp(36px, 6vw, 56px); line-height: 1.05; margin: 4px 0 4px;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+.total .sub { display: block; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.total .figs { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: flex-end; gap: 4px 28px; }
+.total .fig { min-width: 0; }
+.total .fig-plus output { font-size: clamp(28px, 4.5vw, 44px); }
+.total .fig-plus .payout { margin: 2px 0 0; justify-content: flex-end; }
+.total .fig-plus .plusrow { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: flex-end; gap: 4px 10px; }
+.total .fig-plus .cash { font-size: 15px; font-weight: 700; color: var(--muted); }
+.total .fig-plus .payout b { font-size: 18px; }
+.total .fig-plus.pos output { color: var(--pos); }
+.total .fig-plus.neg output { color: var(--neg); }
+.total .next {
+  display: block; margin: 6px 0 8px; padding: 8px 12px; border-radius: 8px;
+  background: var(--surface); border: 1px solid var(--primary); font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums;
+}
+.total .next b { display: block; color: var(--primary); font-size: 15px; font-weight: 700; }
+.total .payout {
+  display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: baseline; gap: 2px 10px;
+  margin: 6px 0 4px; padding: 0; background: none;
+}
+.total .payout span { font-size: 12px; font-weight: 600; color: var(--muted); }
+.total .payout b { font-family: var(--f-display); font-size: 20px; font-weight: 600; color: var(--brass); font-variant-numeric: tabular-nums; }
+
+.status { padding: 10px 14px; border-radius: var(--r); background: var(--brass-soft); color: var(--ink); font-size: 14px; border: 1px solid var(--line); }
+
+.grid { display: grid; gap: 20px; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); align-items: start; }
+@media (max-width: 900px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 22px; min-width: 0; }
+.panel-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 16px; margin-bottom: 16px; }
+
+/* Umschalter Verkauf / Bewertung */
+.tabs { display: inline-flex; gap: 4px; padding: 4px; border-radius: 10px; background: var(--surface-2); margin-bottom: 18px; max-width: 100%; }
+.tabs button {
+  font: inherit; font-weight: 600; font-size: 14px; border: 0; border-radius: 7px; padding: 8px 14px; min-height: 38px;
+  background: transparent; color: var(--muted); cursor: pointer;
+}
+.tabs button[aria-selected="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+
+/* Formular */
+form.entry { display: grid; gap: 16px; }
+.fields { display: grid; gap: 14px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.fields .wide { grid-column: 1 / -1; }
+.fields .sub-h { grid-column: 1 / -1; margin: 6px 0 -4px; font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+@media (max-width: 520px) { .fields { grid-template-columns: minmax(0, 1fr); } }
+.field { display: grid; gap: 6px; min-width: 0; }
+.field > label, .field > .flabel { font-size: 13px; font-weight: 600; }
+.input { position: relative; min-width: 0; }
+.input input {
+  width: 100%; font: inherit; color: var(--ink); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; min-height: 44px;
+}
+/* Datumsfeld: iPhone-Safari zentriert den Wert und lässt das Feld über den Rand laufen */
+.input input[type="date"] { -webkit-appearance: none; appearance: none; display: block; min-width: 0; max-width: 100%; text-align: left; line-height: 1.4; }
+.input input[type="date"]::-webkit-date-and-time-value { text-align: left; margin: 0; }
+.input input[type="date"]::-webkit-datetime-edit { padding: 0; }
+.input.unit input { padding-right: 34px; text-align: right; font-variant-numeric: tabular-nums; }
+.input .u { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; font-size: 14px; }
+input:focus-visible, select:focus-visible, button:focus-visible, .seg input:focus-visible + span { outline: 2px solid var(--focus); outline-offset: 2px; }
+input[aria-invalid="true"] { border-color: var(--neg); }
+input:disabled { opacity: .55; }
+
+.seg { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--bg); min-height: 44px; }
+.seg label { flex: 1 1 0; position: relative; display: flex; cursor: pointer; }
+.seg label + label { border-left: 1px solid var(--line); }
+.seg input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.seg span { flex: 1; display: grid; place-items: center; padding: 8px 10px; font-weight: 600; font-size: 14px; color: var(--muted); text-align: center; line-height: 1.2; }
+.seg span small { display: block; font-weight: 400; font-size: 11px; }
+.seg input:checked + span { background: var(--primary); color: var(--primary-ink); }
+
+.calc { border-top: 1px dashed var(--line); padding-top: 14px; display: grid; gap: 2px; }
+.calc .calc-tag { font-size: 12px; color: var(--muted); margin: 0 0 6px; }
+.calc .calc-tag strong { color: var(--brass); font-weight: 600; }
+.calc .row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; padding: 6px 0; align-items: baseline; }
+.calc .row .k { font-size: 14px; }
+.calc .row .f { grid-column: 1; font-size: 12px; color: var(--muted); }
+.calc .row .v { grid-column: 2; grid-row: 1 / span 2; text-align: right; font-variant-numeric: tabular-nums; font-weight: 500; }
+.calc .row.minus .v { color: var(--neg); }
+.calc .row.info .v { color: var(--muted); font-weight: 400; }
+.calc .row.result { border-top: 1px solid var(--line); margin-top: 4px; padding-top: 10px; }
+.calc .row.result .k { font-weight: 700; }
+.calc .row.result .v { font-family: var(--f-display); font-size: 24px; font-weight: 600; }
+.calc.example .v, .calc.example .row.minus .v { color: var(--muted); }
+
+.actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.btn {
+  font: inherit; font-weight: 600; font-size: 14px; cursor: pointer; border-radius: 8px; min-height: 44px; padding: 10px 18px;
+  border: 1px solid var(--primary); background: var(--primary); color: var(--primary-ink);
+}
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn.ghost { background: transparent; color: var(--primary); }
+.btn.small { min-height: 34px; padding: 5px 12px; font-size: 13px; }
+.btn.danger { background: var(--neg); border-color: var(--neg); color: var(--surface); }
+.formmsg { font-size: 13px; color: var(--neg); }
+
+/* Staffel */
+.meter { margin: 6px 0 18px; }
+.meter .rates, .meter .ticks { position: relative; height: 18px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.meter .rates span, .meter .ticks span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+.meter .rates span { font-weight: 600; color: var(--ink); }
+.meter .ticks span.goal { color: var(--brass); font-weight: 600; }
+.track { position: relative; height: 16px; border-radius: 4px; overflow: hidden; background: var(--seg1); margin: 4px 0; }
+.track .seg-bg { position: absolute; top: 0; bottom: 0; }
+.track .fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--primary); transition: width .4s ease; }
+.track .tick { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--surface); }
+.track .goal { position: absolute; top: -2px; bottom: -2px; width: 3px; background: var(--brass); }
+.track .goal.done { top: 2px; bottom: auto; width: 12px; height: 12px; border-radius: 50%; background: var(--pos); box-shadow: 0 0 0 2px var(--surface); }
+.meter #mGoal { height: auto; min-height: 26px; margin-top: 4px; }
+.meter #mGoal .goal { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 8px; border-radius: 999px; font-size: 12.5px; font-weight: 600; }
+.meter #mGoal .goal b { font-weight: 800; }
+.meter #mGoal .goal.pending { background: var(--brass-soft); color: var(--brass); }
+.meter #mGoal .goal.done { background: var(--pos-soft); color: var(--pos); }
+.meter #mGoal svg { width: 14px; height: 14px; flex: none; display: block; }
+@media (prefers-reduced-motion: reduce) { .track .fill { transition: none; } }
+
+dl.kv { margin: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); }
+dl.kv dd small { text-wrap: balance; }
+dl.kv dt, dl.kv dd { padding: 8px 0; border-bottom: 1px solid var(--line); margin: 0; }
+dl.kv dt { font-size: 14px; color: var(--muted); padding-right: 12px; }
+dl.kv dd { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+dl.kv dd small { display: block; font-weight: 400; font-size: 12px; color: var(--muted); }
+dl.kv dt small { display: block; font-size: 12px; }
+dl.kv dt.cmp, dl.kv dd.cmp { color: var(--muted); font-weight: 500; }
+dl.kv dt.sum { color: var(--ink); font-weight: 700; }
+dl.kv dd.sum { font-family: var(--f-display); font-size: 20px; }
+dl.kv dd.sum small { font-family: var(--f-body); }
+dl.kv .pos { color: var(--pos); }
+dl.kv .neg { color: var(--neg); }
+.pill { display: inline-block; padding: 1px 9px; border-radius: 999px; background: var(--surface-2); font-size: 13px; }
+
+/* Ø Objektwert unter dem Break-even */
+.avg { display: flex; align-items: center; gap: 14px; padding: 12px 14px; border-radius: var(--r); background: var(--bg); border: 1px solid var(--line); }
+.avg-ic { flex: none; width: 46px; height: 46px; border-radius: 12px; display: grid; place-items: center; background: var(--surface-2); color: var(--primary); }
+.avg-ic svg { width: 25px; height: 25px; display: block; }
+.avg-tx { display: grid; min-width: 0; }
+.avg-l { font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.avg-v { font-family: var(--f-display); font-size: 24px; font-weight: 600; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.avg-s { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.avg-s span { white-space: nowrap; }
+.setup { display: grid; gap: 12px; padding: 14px; margin-bottom: 16px; border: 1px solid var(--brass); border-radius: var(--r); background: var(--brass-soft); }
+.setup-h { margin: 0; font-weight: 700; font-size: 15px; }
+.setup .input input { background: var(--surface); }
+.goals { margin-top: 20px; display: grid; gap: 10px; }
+.goals-h { font-family: var(--f-display); font-size: 17px; font-weight: 600; margin: 0; }
+.goal-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.g { border: 1px solid var(--line); border-radius: var(--r); padding: 12px 14px; display: grid; gap: 9px; background: var(--bg); }
+.g.is-goal { border-color: var(--brass); }
+.g-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 10px; }
+.g-label { font-weight: 700; font-size: 14px; }
+.g.is-goal .g-label { color: var(--brass); }
+.g-at { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.g-bar { height: 6px; border-radius: 3px; background: var(--seg2); overflow: hidden; }
+.g-bar span { display: block; height: 100%; background: var(--primary); }
+.g.is-goal .g-bar span { background: var(--brass); }
+.g.is-done .g-bar span { background: var(--pos); }
+.g-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px 14px; }
+.g-stats div { display: grid; align-content: start; min-width: 0; }
+.g-stats span { font-size: 12px; color: var(--muted); }
+.g-stats b { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.g-stats em { display: block; font-style: normal; font-size: 12px; font-weight: 600; color: var(--pos); }
+.g-stats em.neg { color: var(--neg); }
+.g-done { margin: 0; font-size: 14px; font-weight: 600; color: var(--pos); }
+
+details { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px; }
+details > summary { cursor: pointer; font-weight: 600; font-size: 14px; color: var(--primary); min-height: 32px; display: flex; align-items: center; }
+details > summary { list-style: none; gap: 10px; }
+details > summary::-webkit-details-marker { display: none; }
+details > summary::after { content: ""; width: 7px; height: 7px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: translateY(-2px) rotate(45deg); transition: transform .2s ease; }
+details[open] > summary::after { transform: translateY(2px) rotate(-135deg); }
+@media (prefers-reduced-motion: reduce) { details > summary::after { transition: none; } }
+details .fields { margin-top: 12px; }
+.checks { margin: 10px 0 0; padding-left: 18px; display: grid; gap: 8px; font-size: 13.5px; max-width: 70ch; }
+.checks b { font-weight: 600; }
+
+/* Zeitraum */
+.toolbar { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: flex-end; justify-content: space-between; }
+.filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+.filters label { display: grid; gap: 4px; font-size: 12px; font-weight: 600; color: var(--muted); }
+select {
+  font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+  padding: 8px 10px; min-height: 40px; min-width: 130px;
+}
+.period { font-size: 14px; color: var(--muted); margin: 0; font-variant-numeric: tabular-nums; }
+.period strong { color: var(--ink); font-size: 18px; font-family: var(--f-display); font-weight: 600; }
+
+/* Journale */
+.sumline { font-size: 14px; color: var(--muted); margin: 0 0 12px; }
+.sumline strong { color: var(--ink); font-variant-numeric: tabular-nums; }
+.table-wrap { position: relative; overflow-x: auto; border: 1px solid var(--line); border-radius: var(--r); }
+table { border-collapse: collapse; width: 100%; min-width: 980px; font-size: 13.5px; }
+table.bew { min-width: 720px; }
+th, td { padding: 9px 8px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--line); }
+th { white-space: normal; line-height: 1.25; }
+th { background: var(--surface-2); font-size: 12px; font-weight: 600; letter-spacing: 0.02em; color: var(--muted); vertical-align: bottom; }
+th.l, td.l { text-align: left; }
+td.obj { white-space: normal; min-width: 140px; max-width: 240px; }
+td { font-variant-numeric: tabular-nums; }
+th button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; display: inline-flex; gap: 4px; align-items: center; }
+th button:hover { color: var(--ink); }
+th[aria-sort] button { color: var(--ink); }
+th .arr { font-size: 10px; width: 10px; display: inline-block; }
+td.roh { font-weight: 700; }
+td.minus { color: var(--neg); }
+td .nil { color: var(--muted); }
+tbody tr:hover td { background: color-mix(in srgb, var(--surface-2) 55%, transparent); }
+tfoot td { font-weight: 700; background: var(--surface-2); border-bottom: 0; }
+.tag { font-size: 12px; padding: 1px 8px; border-radius: 999px; background: var(--surface-2); color: var(--muted); }
+.tag.yes { background: var(--brass-soft); color: var(--brass); font-weight: 600; }
+.editbar {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px;
+  margin-bottom: 14px; padding: 8px 8px 8px 12px; border-radius: 8px;
+  background: var(--brass-soft); border: 1px solid var(--brass); font-size: 14px; font-weight: 600; min-width: 0;
+}
+.editbar span { min-width: 0; overflow-wrap: anywhere; }
+tr.editing td { background: var(--brass-soft); }
+.rowact { display: inline-flex; gap: 2px; }
+.rowdel { font: inherit; font-size: 13px; color: var(--muted); background: none; border: 1px solid transparent; border-radius: 6px; padding: 4px 8px; cursor: pointer; }
+.rowdel:hover { border-color: var(--line); color: var(--neg); }
+.confirm { display: inline-flex; gap: 6px; align-items: center; }
+.empty { padding: 28px 18px; text-align: center; color: var(--muted); }
+.empty strong { color: var(--ink); display: block; font-size: 15px; margin-bottom: 4px; }
+
+.csvbox { margin-top: 14px; display: grid; gap: 8px; }
+.csvbox textarea { width: 100%; min-height: 140px; font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px; }
+
+/* Journal-Kopf: Zeitraum + Sortierung */
+.jbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin: -4px 0 12px; }
+.jbar label { display: grid; gap: 4px; font-size: 12px; font-weight: 600; color: var(--muted); min-width: 0; }
+.jbar .sortm { display: none; }
+.mi { display: none; }
+details.kvd > summary { margin-bottom: 4px; }
+
+/* Handy */
+@media (max-width: 640px) {
+  .wrap { padding-block: 18px 40px; gap: 16px; }
+  .panel { padding: 16px; border-radius: 12px; }
+  .panel-head { margin-bottom: 12px; }
+  h2 { font-size: 19px; }
+  .tabs { display: flex; width: 100%; margin-bottom: 14px; }
+  .tabs button { flex: 1 1 0; padding: 8px 6px; }
+  form.entry { gap: 14px; }
+  form.entry .fields { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px 10px; }
+  form.entry .field { align-content: end; }
+  #entry .seg span small { display: none; }
+  #entry .f-datum { grid-column: 1 / -1; }
+  form.entry .actions .btn:not(.ghost) { flex: 1 1 auto; }
+
+  .jbar { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .jbar select { min-width: 0; width: 100%; }
+  .jbar .sortm { display: grid; grid-column: 1 / -1; }
+
+  /* Journal als Karten */
+  .table-wrap { overflow: visible; border: 0; border-radius: 0; }
+  .table-wrap table { display: block; min-width: 0; }
+  .table-wrap thead { display: none; }
+  .table-wrap tbody, .table-wrap tfoot { display: grid; gap: 8px; }
+  .table-wrap tfoot { margin-top: 8px; }
+  .table-wrap tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--r); background: var(--bg); }
+  .table-wrap td { display: none; padding: 0; border: 0; white-space: normal; text-align: left; background: none; }
+  .table-wrap td.obj, .table-wrap td.roh, .table-wrap td.dat, .table-wrap td.stf, .table-wrap td.act { display: block; }
+  .table-wrap td.obj { order: 0; min-width: 0; max-width: none; font-weight: 600; font-size: 15px; line-height: 1.35; }
+  .table-wrap td.roh { order: 1; text-align: right; font-size: 15px; }
+  .table-wrap td.dat { order: 2; grid-column: 1 / -1; font-size: 12.5px; color: var(--muted); }
+  .table-wrap td.stf { order: 3; grid-column: 1 / -1; font-size: 12.5px; color: var(--muted); }
+  .table-wrap td.act { order: 4; grid-column: 1 / -1; margin-top: 8px; }
+  .table-wrap td.act:empty { display: none; }
+  .table-wrap .mi { display: inline; }
+  .table-wrap .mi.minus { color: var(--neg); }
+  .table-wrap .rowdel { min-height: 34px; padding: 5px 14px; border-color: var(--line); background: var(--surface); color: var(--ink); }
+  .table-wrap .mi { white-space: nowrap; }
+  .table-wrap .rowact { gap: 8px; }
+  tbody tr:hover td { background: none; }
+  .table-wrap tr.editing { background: var(--brass-soft); border-color: var(--brass); }
+  .table-wrap tr.editing td { background: none; }
+  .table-wrap tfoot tr { background: var(--surface-2); border-color: transparent; }
+  .table-wrap tfoot td.l, .table-wrap tfoot td.roh { display: block; background: none; }
+  .table-wrap tfoot td.l { font-size: 13px; }
+  .empty { padding: 20px 12px; border: 1px dashed var(--line); border-radius: var(--r); }
+}
+
+.toast {
+  position: fixed; left: 50%; transform: translateX(-50%);
+  bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+  max-width: calc(100% - 32px); background: var(--ink); color: var(--bg);
+  padding: 10px 16px; border-radius: 10px; font-size: 14px; box-shadow: 0 6px 24px rgba(0,0,0,.18); z-index: 20;
+}
+</style>
+
+<div class="wrap">
+  <div class="counts" id="totalMeta" aria-live="polite"><span><b>0</b> Verkäufe</span><span><b>0</b> Einschätzungen</span></div>
+  <header class="top" data-view="uebersicht">
+    <div class="brand">
+      <h1 id="pageTitle">Provision 2026</h1>
+    </div>
+    <div class="total" aria-live="polite">
+      <div class="figs">
+        <div class="fig"><span class="label" id="totalLabel">Provisionsumsatz 2026</span><output id="totalAll" class="num">0,00&nbsp;€</output></div>
+        <div class="fig fig-plus" id="totalPlusBox" hidden><div class="plusrow"><span class="cash">Rohertrag Cash out:</span><output id="totalPlus" class="num">0,00&nbsp;€</output></div><span class="payout" id="totalPayout"><span>Davon für Schätzungen</span><b>0,00&nbsp;€</b></span></div>
+      </div>
+      <span class="next" id="totalNext" hidden></span>
+      <span class="sub" id="totalSplit">Courtage-Anteil 0,00 € · Bewertungen 0,00 €</span>
+      <span class="sub" id="totalRoh">Rohertrag nach Tippgeber 0,00 €</span>
+    </div>
+  </header>
+
+  <div id="status" class="status" role="status" hidden></div>
+
+  <section class="grid">
+    <section class="panel" id="erfassung" aria-label="Erfassung" data-view="erfassen">
+      <div class="editbar" id="editBar" role="status" hidden><span id="editText"></span><button type="button" class="btn small ghost" id="editCancel">Abbrechen</button></div>
+      <div class="tabs" role="tablist" aria-label="Was erfassen?">
+        <button type="button" role="tab" id="tab-v" aria-controls="entry" aria-selected="true">Verkauf</button>
+        <button type="button" role="tab" id="tab-b" aria-controls="bew" aria-selected="false">Marktpreiseinschätzung</button>
+      </div>
+
+      <!-- Verkauf -->
+      <form id="entry" class="entry" role="tabpanel" aria-labelledby="tab-v" novalidate>
+        <div class="fields">
+          <div class="field wide">
+            <label for="f-objekt">Objektname</label>
+            <div class="input"><input id="f-objekt" type="text" autocomplete="off" placeholder="z. B. Musterstraße 1, Landau" maxlength="160"></div>
+          </div>
+          <div class="field">
+            <label for="f-wert">Verkaufswert</label>
+            <div class="input unit"><input id="f-wert" type="text" inputmode="decimal" placeholder="400.000" autocomplete="off"><span class="u">€</span></div>
+          </div>
+          <div class="field">
+            <label for="f-courtage">Maklercourtage netto</label>
+            <div class="input unit"><input id="f-courtage" type="text" inputmode="decimal" placeholder="6" autocomplete="off"><span class="u">%</span></div>
+          </div>
+          <div class="field">
+            <span class="flabel" id="l-anteil">Mein Anteil</span>
+            <div class="seg" role="radiogroup" aria-labelledby="l-anteil">
+              <label><input type="radio" name="anteil" id="f-anteil-50" value="50" checked><span>50 %<small>mit Kollege geteilt</small></span></label>
+              <label><input type="radio" name="anteil" id="f-anteil-100" value="100"><span>100 %<small>allein</small></span></label>
+            </div>
+          </div>
+          <div class="field">
+            <span class="flabel" id="l-tipp">Tippgeber beteiligt?</span>
+            <div class="seg" role="radiogroup" aria-labelledby="l-tipp">
+              <label><input type="radio" name="tipp" id="f-tipp-ja" value="ja"><span>Ja<small>3 % abziehen</small></span></label>
+              <label><input type="radio" name="tipp" id="f-tipp-nein" value="nein"><span>Nein<small>kein Abzug</small></span></label>
+            </div>
+          </div>
+          <div class="field f-datum">
+            <label for="f-datum">Datum Beurkundung</label>
+            <div class="input"><input id="f-datum" type="date"></div>
+          </div>
+        </div>
+
+        <div class="calc" id="calc" aria-live="polite" hidden>
+          <p class="calc-tag" id="calcTag"></p>
+          <div class="row"><span class="k">Gesamtcourtage</span><span class="f" id="c-f1"></span><span class="v" id="c-v1"></span></div>
+          <div class="row"><span class="k">Mein Courtage-Anteil</span><span class="f" id="c-f2"></span><span class="v" id="c-v2"></span></div>
+          <div class="row minus"><span class="k">Tippgeber-Anteil</span><span class="f" id="c-f3"></span><span class="v" id="c-v3"></span></div>
+          <div class="row result"><span class="k">Rohertrag für Makler</span><span class="f" id="c-f4"></span><span class="v" id="c-v4"></span></div>
+        </div>
+
+        <div class="actions">
+          <button class="btn" id="saveBtn" type="submit" disabled>Verkauf speichern</button>
+          <button class="btn ghost" id="resetBtn" type="button">Felder leeren</button>
+          <span class="formmsg" id="formMsg" role="alert"></span>
+        </div>
+      </form>
+
+      <!-- Marktpreiseinschätzung -->
+      <form id="bew" class="entry" role="tabpanel" aria-labelledby="tab-b" novalidate hidden>
+        <div class="fields">
+          <div class="field wide">
+            <label for="b-name">Objekt / Auftraggeber</label>
+            <div class="input"><input id="b-name" type="text" autocomplete="off" placeholder="z. B. ETW Westring 12, Familie Weber" maxlength="160"></div>
+          </div>
+          <div class="field wide">
+            <span class="flabel" id="l-preis">Preis</span>
+            <div class="seg" role="radiogroup" aria-labelledby="l-preis">
+              <label><input type="radio" name="preisart" id="b-std" value="standard" checked><span id="b-std-label">Standard<small>400 € zzgl. MwSt.</small></span></label>
+              <label><input type="radio" name="preisart" id="b-ind" value="individuell"><span>Eigener Preis<small>höher verkauft</small></span></label>
+            </div>
+          </div>
+          <div class="field">
+            <label for="b-preis">Preis netto (zzgl. MwSt.)</label>
+            <div class="input unit"><input id="b-preis" type="text" inputmode="decimal" placeholder="550" autocomplete="off" disabled><span class="u">€</span></div>
+          </div>
+          <div class="field">
+            <label for="b-datum">Datum</label>
+            <div class="input"><input id="b-datum" type="date"></div>
+          </div>
+        </div>
+
+        <div class="calc" id="bcalc" aria-live="polite">
+          <div class="row"><span class="k">Preis netto</span><span class="f" id="b-f1">Standardpreis</span><span class="v" id="b-v1"></span></div>
+          <div class="row result"><span class="k">Deine Auszahlung</span><span class="f" id="b-f4"></span><span class="v" id="b-v4"></span></div>
+        </div>
+
+        <div class="actions">
+          <button class="btn" id="bSaveBtn" type="submit" disabled>Einschätzung speichern</button>
+          <button class="btn ghost" id="bResetBtn" type="button">Felder leeren</button>
+          <span class="formmsg" id="bMsg" role="alert"></span>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel" aria-labelledby="h-staffel" data-view="uebersicht">
+      <div class="panel-head"><h2 id="h-staffel">Provisionsstaffel <span id="stYear" class="num">2026</span></h2><span class="micro" id="stBasisNote">Basis: Rohertrag netto</span></div>
+
+      <div class="meter" aria-hidden="true">
+        <div class="rates" id="mRates"></div>
+        <div class="track" id="mTrack"></div>
+        <div class="ticks" id="mTicks"></div>
+        <div class="ticks" id="mGoal"></div>
+      </div>
+
+      <div class="avg" id="stAvg" hidden>
+        <span class="avg-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.8 12 3.6l9 7.2"/><path d="M5.4 9v11.2h13.2V9"/><path d="M10 20.2v-5.6h4v5.6"/></svg></span>
+        <div class="avg-tx">
+          <span class="avg-l">Ø Objektwert</span>
+          <b class="avg-v" id="stAvgV">0 €</b>
+          <span class="avg-s" id="stAvgS"></span>
+        </div>
+      </div>
+
+      <form class="setup" id="setup" novalidate hidden>
+        <p class="setup-h">Trag zuerst deinen Vorschuss ein</p>
+        <div class="fields">
+          <div class="field">
+            <label for="su-v">Vorschuss pro Zahlung</label>
+            <div class="input unit"><input id="su-v" type="text" inputmode="decimal" placeholder="2.400" autocomplete="off"><span class="u">€</span></div>
+          </div>
+          <div class="field">
+            <label for="su-a">Zahlungen pro Jahr</label>
+            <div class="input unit"><input id="su-a" type="text" inputmode="numeric" value="13" autocomplete="off"><span class="u">×</span></div>
+          </div>
+        </div>
+        <div class="actions"><button class="btn small" type="submit" id="su-save">Vorschuss speichern</button><span class="formmsg" id="su-msg" role="alert"></span></div>
+        <p class="hint" style="margin:0">Bleibt nur auf diesem Gerät. Ändern kannst du ihn später unter „Annahmen anpassen“.</p>
+      </form>
+
+      <div class="goals">
+        <h3 class="goals-h" id="stGoalsH">Was bis zur nächsten Schwelle fehlt</h3>
+        <ol class="goal-list" id="stGoals"></ol>
+      </div>
+
+      <details class="kvd" id="stDetails">
+        <summary>Rechnung im Detail</summary>
+        <dl class="kv" id="stKv"></dl>
+      </details>
+
+      <details id="stSettings">
+        <summary>Annahmen anpassen</summary>
+        <form id="settingsForm" novalidate>
+          <div class="fields">
+            <p class="sub-h">Jahr</p>
+            <div class="field wide">
+              <label for="s-jahr">Provisionsjahr (Überschrift und Staffel)</label>
+              <div class="input"><input id="s-jahr" type="text" inputmode="numeric" maxlength="4" autocomplete="off"></div>
+              <span class="hint">Leer lassen = automatisch das aktuelle Jahr.</span>
+            </div>
+            <p class="sub-h">Staffel</p>
+            <div class="field">
+              <label for="s-vorschuss">Vorschuss pro Zahlung</label>
+              <div class="input unit"><input id="s-vorschuss" type="text" inputmode="decimal"><span class="u">€</span></div>
+            </div>
+            <div class="field">
+              <label for="s-vanz">Anzahl Vorschusszahlungen</label>
+              <div class="input unit"><input id="s-vanz" type="text" inputmode="numeric"><span class="u">×</span></div>
+            </div>
+            <p class="hint wide" style="margin:-6px 0 0">Der Break-even ergibt sich automatisch aus dem Jahresvorschuss.</p>
+            <div class="field wide">
+              <span class="flabel" id="l-logik">Staffel-Logik</span>
+              <div class="seg" role="radiogroup" aria-labelledby="l-logik">
+                <label><input type="radio" name="logik" id="s-logik-gesamt" value="gesamt"><span>Gesamtsatz<small>Stufe gilt für alles</small></span></label>
+                <label><input type="radio" name="logik" id="s-logik-stufen" value="stufenweise"><span>Stufenweise<small>je Abschnitt</small></span></label>
+              </div>
+            </div>
+            <div class="field wide">
+              <label for="s-p1">Satz Stufe 1 (unter Stufe 2)</label>
+              <div class="input unit"><input id="s-p1" type="text" inputmode="decimal"><span class="u">%</span></div>
+            </div>
+            <div class="field">
+              <label for="s-g1">Stufe 2 ab</label>
+              <div class="input unit"><input id="s-g1" type="text" inputmode="decimal"><span class="u">€</span></div>
+            </div>
+            <div class="field">
+              <label for="s-p2">Satz Stufe 2</label>
+              <div class="input unit"><input id="s-p2" type="text" inputmode="decimal"><span class="u">%</span></div>
+            </div>
+            <div class="field">
+              <label for="s-g2">Stufe 3 ab</label>
+              <div class="input unit"><input id="s-g2" type="text" inputmode="decimal"><span class="u">€</span></div>
+            </div>
+            <div class="field">
+              <label for="s-p3">Satz Stufe 3</label>
+              <div class="input unit"><input id="s-p3" type="text" inputmode="decimal"><span class="u">%</span></div>
+            </div>
+
+            <p class="sub-h">Motivationsrechnung</p>
+            <div class="field">
+              <label for="s-mc">Courtage-Annahme netto</label>
+              <div class="input unit"><input id="s-mc" type="text" inputmode="decimal"><span class="u">%</span></div>
+            </div>
+            <div class="field">
+              <label for="s-ma">Anteil-Annahme</label>
+              <div class="input unit"><input id="s-ma" type="text" inputmode="decimal"><span class="u">%</span></div>
+            </div>
+            <div class="field wide">
+              <label for="s-mo">Ø Objektpreis</label>
+              <div class="input unit"><input id="s-mo" type="text" inputmode="decimal"><span class="u">€</span></div>
+            </div>
+
+            <p class="sub-h">Marktpreiseinschätzung</p>
+            <div class="field">
+              <label for="s-bpreis">Standardpreis netto</label>
+              <div class="input unit"><input id="s-bpreis" type="text" inputmode="decimal"><span class="u">€</span></div>
+            </div>
+            <div class="field">
+              <label for="s-banteil">Dein Anteil</label>
+              <div class="input unit"><input id="s-banteil" type="text" inputmode="decimal"><span class="u">%</span></div>
+            </div>
+            <div class="field wide">
+              <span class="flabel" id="l-bdir">Wie wird dein Bewertungsanteil vergütet?</span>
+              <div class="seg" role="radiogroup" aria-labelledby="l-bdir">
+                <label><input type="radio" name="bewdir" id="s-bewdir-separat" value="separat"><span>Separat<small>60 % extra ausgezahlt</small></span></label>
+                <label><input type="radio" name="bewdir" id="s-bewdir-vorschuss" value="vorschuss"><span>Vorschuss<small>gegen Vorschuss</small></span></label>
+                <label><input type="radio" name="bewdir" id="s-bewdir-staffelsatz" value="staffelsatz"><span>Staffelsatz<small>5 / 15 / 18 %</small></span></label>
+              </div>
+            </div>
+            <div class="field wide">
+              <span class="flabel" id="l-bst">Was zählt zur Staffel?</span>
+              <div class="seg" role="radiogroup" aria-labelledby="l-bst">
+                <label><input type="radio" name="bewst" id="s-bewst-preis" value="preis"><span>Voller Preis<small>z. B. 400 €</small></span></label>
+                <label><input type="radio" name="bewst" id="s-bewst-anteil" value="anteil"><span>Dein Anteil<small>z. B. 240 €</small></span></label>
+                <label><input type="radio" name="bewst" id="s-bewst-nein" value="nein"><span>Nichts<small>nur Gesamtstand</small></span></label>
+              </div>
+            </div>
+          </div>
+          <div class="actions" style="margin-top:14px">
+            <button class="btn small" type="submit" id="settingsSave">Annahmen speichern</button>
+            <button class="btn small ghost" type="button" id="settingsReset">Standardwerte</button>
+            <span class="formmsg" id="settingsMsg" role="alert"></span>
+          </div>
+        </form>
+      </details>
+
+    </section>
+  </section>
+
+  <section class="panel" aria-labelledby="h-ledger" data-view="journal">
+    <div class="panel-head">
+      <h2 id="h-ledger">Verkaufsjournal</h2>
+      <button class="btn small ghost" id="csvBtn" type="button">CSV exportieren</button>
+    </div>
+    <div class="jbar" aria-label="Zeitraum und Sortierung">
+      <label for="fl-year">Jahr<select id="fl-year"></select></label>
+      <label for="fl-month">Monat<select id="fl-month"></select></label>
+      <label class="sortm" for="fl-sort">Sortierung<select id="fl-sort">
+        <option value="" hidden>Eigene Sortierung</option>
+        <option value="datum|desc">Datum, neueste zuerst</option>
+        <option value="datum|asc">Datum, älteste zuerst</option>
+        <option value="rohertrag|desc">Rohertrag, höchster zuerst</option>
+        <option value="verkaufswert|desc">Verkaufswert, höchster zuerst</option>
+        <option value="objekt|asc">Objekt A–Z</option>
+      </select></label>
+    </div>
+    <p class="sumline" id="sumline"></p>
+    <div class="table-wrap">
+      <table id="tV">
+        <thead>
+          <tr>
+            <th class="l" data-key="datum"><button type="button">Datum<span class="arr"></span></button></th>
+            <th class="l" data-key="objekt"><button type="button">Objekt<span class="arr"></span></button></th>
+            <th data-key="verkaufswert"><button type="button">Verkaufswert<span class="arr"></span></button></th>
+            <th>Courtage netto</th>
+            <th data-key="gesamtcourtage"><button type="button">Gesamtcourtage<span class="arr"></span></button></th>
+            <th>Anteil</th>
+            <th data-key="meinCourtageAnteil"><button type="button">Mein Anteil € · Staffel<span class="arr"></span></button></th>
+            <th>Tippgeber €</th>
+            <th data-key="rohertrag"><button type="button">Rohertrag<span class="arr"></span></button></th>
+            <th><span class="vh">Aktion</span></th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+        <tfoot id="tfoot"></tfoot>
+      </table>
+      <div class="empty" id="empty"></div>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="h-bew" data-view="journal">
+    <div class="panel-head">
+      <h2 id="h-bew">Marktpreiseinschätzungen</h2>
+      <button class="btn small ghost" id="bCsvBtn" type="button">CSV exportieren</button>
+    </div>
+    <p class="sumline" id="bSumline"></p>
+    <div class="table-wrap">
+      <table class="bew" id="tB">
+        <thead>
+          <tr>
+            <th class="l" data-key="datum"><button type="button">Datum<span class="arr"></span></button></th>
+            <th class="l" data-key="bezeichnung"><button type="button">Objekt / Auftraggeber<span class="arr"></span></button></th>
+            <th class="l">Preisart</th>
+            <th data-key="preisNetto"><button type="button">Preis netto · Staffel<span class="arr"></span></button></th>
+            <th>Preis brutto</th>
+            <th>Anteil</th>
+            <th data-key="ertrag"><button type="button">Auszahlung<span class="arr"></span></button></th>
+            <th><span class="vh">Aktion</span></th>
+          </tr>
+        </thead>
+        <tbody id="bTbody"></tbody>
+        <tfoot id="bTfoot"></tfoot>
+      </table>
+      <div class="empty" id="bEmpty"></div>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="h-backup">
+    <div class="panel-head"><h2 id="h-backup">Datensicherung</h2><span class="micro" id="bkInfo"></span></div>
+    <p class="micro" style="max-width:70ch">Deine Daten liegen nur auf diesem Gerät, niemand sonst sieht sie. Lade nach neuen Einträgen eine Sicherung herunter. So kannst du sie auf einem anderen Gerät oder nach dem Löschen der Browserdaten wieder einspielen.</p>
+    <div class="actions" style="margin-top:12px">
+      <button class="btn small" id="bkSave" type="button">Sicherung herunterladen</button>
+      <label class="btn small ghost" for="bkFile" style="display:inline-flex;align-items:center">Sicherung einspielen</label>
+      <input id="bkFile" type="file" accept=".json,application/json" class="vh">
+    </div>
+    <div class="editbar" id="bkConfirm" style="margin-top:12px" hidden><span id="bkConfirmText"></span><span class="rowact"><button class="btn small danger" id="bkYes" type="button">Einspielen</button><button class="btn small ghost" id="bkNo" type="button">Abbrechen</button></span></div>
+    <p class="formmsg" id="bkMsg" role="alert" style="margin:8px 0 0"></p>
+  </section>
+
+  <div class="csvbox panel" id="csvBox" data-view="journal" hidden>
+    <p class="micro" id="csvHint">Der direkte Download ist in dieser Ansicht nicht verfügbar. Kopiere den Inhalt und speichere ihn als .csv-Datei.</p>
+    <textarea id="csvText" readonly></textarea>
+    <div class="actions"><button class="btn small" id="csvCopy" type="button">Kopieren</button><button class="btn small ghost" id="csvClose" type="button">Schließen</button></div>
+  </div>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>
+(function () {
+  "use strict";
+  var $ = function (s) { return document.querySelector(s); };
+  var EUR = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" });
+  var EUR0 = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 0, minimumFractionDigits: 0 });
+  var INT = new Intl.NumberFormat("de-DE", { maximumFractionDigits: 0 });
+  var DEC = new Intl.NumberFormat("de-DE", { maximumFractionDigits: 2 });
+  var MONTHS = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
+  var MSHORT = ["Jan","Feb","Mär","Apr","Mai","Jun","Jul","Aug","Sep","Okt","Nov","Dez"];
+  var TIPP_SATZ = 3, MWST = 19;
+  var DEFAULTS = {
+    jahr: null, vorschussMonat: 0, vorschussAnzahl: 13, logik: "gesamt",
+    grenze1: 150000, grenze2: 300000, satz1: 5, satz2: 15, satz3: 18,
+    bewStandard: 400, bewAnteil: 60, bewInStaffel: true, bewStaffelBasis: "preis", bewVerguetung: "separat",
+    motCourtage: 6, motAnteil: 50, motObjekt: 300000
+  };
+
+  var db = null, downloads = null, canWrite = null, loadedV = false, loadedB = false;
+  var uid = null, loadedS = false;
+  // Blanko: alles bleibt im Browser dieses Geräts (localStorage), kein Konto nötig
+  var LS_KEY = "courtage-tracker-blanko-v1";
+  var memStore = { docs: {} }, storageOk = true, listeners = [];
+  function loadStore() {
+    try { var raw = localStorage.getItem(LS_KEY); if (raw) { var j = JSON.parse(raw); if (j && j.docs) return j; } }
+    catch (e) { storageOk = false; }
+    return { docs: {} };
+  }
+  function saveStore() { try { localStorage.setItem(LS_KEY, JSON.stringify(memStore)); return true; } catch (e) { storageOk = false; return false; } }
+  function notifyAll() { listeners.forEach(function (f) { try { f(); } catch (e) {} }); }
+  function newId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+  function clone(o) { return JSON.parse(JSON.stringify(o)); }
+  function snapCol(path) {
+    var docs = Object.keys(memStore.docs).filter(function (k) { return k.indexOf(path + "/") === 0 && k.slice(path.length + 1).indexOf("/") < 0; })
+      .map(function (k) { var d = memStore.docs[k]; return { id: k.slice(path.length + 1), exists: true, data: function () { return d; }, metadata: { fromCache: false } }; });
+    return { docs: docs, size: docs.length, empty: !docs.length, metadata: { fromCache: false, hasPendingWrites: false } };
+  }
+  function localCol(path) {
+    return {
+      onSnapshot: function (cb) { var f = function () { cb(snapCol(path)); }; listeners.push(f); setTimeout(f, 0); return function () {}; },
+      doc: function (id) { return localDoc(path + "/" + (id || newId())); }
+    };
+  }
+  function localDoc(path) {
+    return {
+      set: function (data) {
+        var prev = memStore.docs[path];
+        memStore.docs[path] = clone(data);
+        if (!saveStore()) { if (prev === undefined) delete memStore.docs[path]; else memStore.docs[path] = prev; return Promise.reject({ code: "local" }); }
+        notifyAll(); return Promise.resolve();
+      },
+      delete: function () { var prev = memStore.docs[path]; delete memStore.docs[path]; if (!saveStore()) { memStore.docs[path] = prev; return Promise.reject({ code: "local" }); } notifyAll(); return Promise.resolve(); },
+      collection: function (name) { return localCol(path + "/" + name); },
+      onSnapshot: function (cb) { var f = function () { var d = memStore.docs[path]; cb({ exists: !!d, data: function () { return d; }, metadata: { fromCache: false } }); }; listeners.push(f); setTimeout(f, 0); return function () {}; }
+    };
+  }
+  var localDb = { doc: localDoc, collection: localCol };
+  function userCol(name) { return db.doc("data/users/" + uid + "/profil").collection(name); }
+  function settingsRef() { return db.doc("data/users/" + uid + "/einstellungen"); }
+  var records = [], bewRecords = [];
+  var settings = Object.assign({}, DEFAULTS);
+  var settingsDirty = false;
+  var filter = { year: "alle", month: "alle" };
+  var sort = { key: "datum", dir: "desc" };
+  var bsort = { key: "datum", dir: "desc" };
+  var tab = "v";
+  var pendingDelete = null;
+  var editing = null;
+
+  try {
+    var saved = JSON.parse(localStorage.getItem("ct-view") || "null");
+    if (saved) { if (saved.filter) filter = saved.filter; if (saved.sort) sort = saved.sort; if (saved.bsort) bsort = saved.bsort; if (saved.tab) tab = saved.tab; }
+  } catch (e) {}
+  function rememberView() { try { localStorage.setItem("ct-view", JSON.stringify({ filter: filter, sort: sort, bsort: bsort, tab: tab })); } catch (e) {} }
+
+  /* ---------- Rechnen ---------- */
+  function r2(x) { return Math.round(Number((x * 100).toPrecision(15))) / 100; }
+  function calc(wert, courtage, anteil, tipp) {
+    var gesamt = r2(wert * courtage / 100);
+    var mein = r2(gesamt * anteil / 100);
+    var tippAnteil = tipp ? r2(mein * TIPP_SATZ / 100) : 0;
+    return { gesamtcourtage: gesamt, meinCourtageAnteil: mein, tippgeberAnteil: tippAnteil, rohertrag: r2(mein - tippAnteil) };
+  }
+  function calcBew(netto, anteil) {
+    var mwst = r2(netto * MWST / 100);
+    return { preisNetto: r2(netto), mwst: mwst, preisBrutto: r2(netto + mwst), ertrag: r2(netto * anteil / 100) };
+  }
+  function parseEuro(s) {
+    s = String(s == null ? "" : s).replace(/[€\s ]/g, "");
+    if (!s) return NaN;
+    if (s.indexOf(",") >= 0) s = s.replace(/\./g, "").replace(",", ".");
+    else if (/^\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, "");
+    if (!/^\d+(\.\d+)?$/.test(s)) return NaN;
+    return Number(s);
+  }
+  function parsePct(s) {
+    s = String(s == null ? "" : s).replace(/[%\s ]/g, "").replace(",", ".");
+    if (!/^\d+(\.\d+)?$/.test(s)) return NaN;
+    return Number(s);
+  }
+  function fmtE(v) { return EUR.format(v || 0); }
+  function fmtE0(v) { return EUR0.format(v || 0); }
+  function fmtP(v) { return DEC.format(v) + " %"; }
+  function teur(v) { return INT.format(v / 1000) + " T€"; }
+  function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function todayISO() { var d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+  function fmtDate(iso) { var p = String(iso || "").split("-"); return p.length === 3 ? p[2] + "." + p[1] + "." + p[0] : "–"; }
+  function num(v, d) { return typeof v === "number" && isFinite(v) ? v : d; }
+  function plural(n, one, many) { return n + " " + (n === 1 ? one : many); }
+
+  function rec(r) {
+    var c = calc(num(r.verkaufswert, 0), num(r.courtageProzent, 0), num(r.anteilProzent, 0), !!r.tippgeber);
+    return {
+      id: r.id, objekt: String(r.objekt || ""), datum: String(r.datum || ""), erfasstAm: String(r.erfasstAm || ""),
+      verkaufswert: num(r.verkaufswert, 0), courtageProzent: num(r.courtageProzent, 0), anteilProzent: num(r.anteilProzent, 0), tippgeber: !!r.tippgeber,
+      gesamtcourtage: num(r.gesamtcourtage, c.gesamtcourtage), meinCourtageAnteil: num(r.meinCourtageAnteil, c.meinCourtageAnteil),
+      tippgeberAnteil: num(r.tippgeberAnteil, c.tippgeberAnteil), rohertrag: num(r.rohertrag, c.rohertrag)
+    };
+  }
+  function brec(r) {
+    var netto = num(r.preisNetto, 0), anteil = num(r.anteilProzent, DEFAULTS.bewAnteil), c = calcBew(netto, anteil);
+    return {
+      id: r.id, bezeichnung: String(r.bezeichnung || ""), datum: String(r.datum || ""), erfasstAm: String(r.erfasstAm || ""),
+      preisNetto: netto, preisBrutto: num(r.preisBrutto, c.preisBrutto), standardpreis: !!r.standardpreis,
+      anteilProzent: anteil, ertrag: num(r.ertrag, c.ertrag)
+    };
+  }
+
+  /* ---------- Staffel ---------- */
+  function rateFor(U, s) { return U < s.grenze1 ? s.satz1 : U < s.grenze2 ? s.satz2 : s.satz3; }
+  function tierIdx(U, s) { return U < s.grenze1 ? 0 : U < s.grenze2 ? 1 : 2; }
+  function provision(U, s) {
+    if (U <= 0) return 0;
+    if (s.logik === "stufenweise") {
+      var a = Math.min(U, s.grenze1) * s.satz1 / 100;
+      var b = Math.max(0, Math.min(U, s.grenze2) - s.grenze1) * s.satz2 / 100;
+      var c = Math.max(0, U - s.grenze2) * s.satz3 / 100;
+      return r2(a + b + c);
+    }
+    return r2(U * rateFor(U, s) / 100);
+  }
+  function breakEvenFn(f, V) {
+    if (V <= 0) return 0;
+    var lo = 0, hi = 1e8;
+    if (f(hi) < V) return null;
+    if (f(0) >= V) return 0;
+    for (var i = 0; i < 80; i++) { var mid = (lo + hi) / 2; if (f(mid) >= V) hi = mid; else lo = mid; }
+    return Math.ceil(hi - 0.005);
+  }
+
+  /* ---------- Tabs ---------- */
+  function showTab(t) {
+    tab = t === "b" ? "b" : "v";
+    $("#tab-v").setAttribute("aria-selected", tab === "v" ? "true" : "false");
+    $("#tab-b").setAttribute("aria-selected", tab === "b" ? "true" : "false");
+    $("#entry").hidden = tab !== "v";
+    $("#bew").hidden = tab !== "b";
+  }
+  $("#tab-v").addEventListener("click", function () { if (editing && editing.col !== "verkaeufe") cancelEdit(); showTab("v"); rememberView(); });
+  $("#tab-b").addEventListener("click", function () { if (editing && editing.col !== "bewertungen") cancelEdit(); showTab("b"); rememberView(); });
+
+  /* ---------- Formular Verkauf ---------- */
+  var form = $("#entry");
+  var fObj = $("#f-objekt"), fWert = $("#f-wert"), fCourt = $("#f-courtage"), fDatum = $("#f-datum");
+  fDatum.value = todayISO();
+
+  function readForm() {
+    var anteilEl = form.querySelector('input[name="anteil"]:checked');
+    var tippEl = form.querySelector('input[name="tipp"]:checked');
+    return {
+      objekt: fObj.value.trim(), wert: parseEuro(fWert.value), courtage: parsePct(fCourt.value),
+      anteil: anteilEl ? Number(anteilEl.value) : null, tipp: tippEl ? tippEl.value === "ja" : null, datum: fDatum.value
+    };
+  }
+  function looksGross(c) {
+    if (!(c > 0)) return false;
+    var cents = Math.round(c * 100);
+    if (cents % 10 === 0) return false;
+    var net = c / 1.19;
+    return Math.abs(net * 2 - Math.round(net * 2)) < 0.01;
+  }
+  function setRow(n, f, v) { $("#c-f" + n).textContent = f; $("#c-v" + n).textContent = v; }
+  function updateCalc() {
+    var d = readForm();
+    var touched = fObj.value || fWert.value || fCourt.value || d.tipp !== null;
+    var box = $("#calc");
+    box.hidden = !touched;
+    if (!touched) { validate(d); return; }
+    $("#calcTag").textContent = "Live-Berechnung";
+    if (!(d.wert > 0) || !(d.courtage > 0)) {
+      setRow(1, "Verkaufswert × Courtage", "–"); setRow(2, "Gesamtcourtage × Anteil", "–");
+      setRow(3, "Mein Anteil × 3 % (nur bei Tippgeber)", "–"); setRow(4, "Mein Anteil − Tippgeber", "–");
+      validate(d); return;
+    }
+    var c = calc(d.wert, d.courtage, d.anteil === null ? 100 : d.anteil, !!d.tipp);
+    setRow(1, fmtE(d.wert) + " × " + fmtP(d.courtage), fmtE(c.gesamtcourtage));
+    if (d.anteil === null) { setRow(2, "Anteil wählen: 50 % oder 100 %", "–"); setRow(3, "–", "–"); setRow(4, "–", "–"); validate(d); return; }
+    setRow(2, fmtE(c.gesamtcourtage) + " × " + d.anteil + " %", fmtE(c.meinCourtageAnteil));
+    if (d.tipp === null) { setRow(3, "Tippgeber wählen: Ja oder Nein", "–"); setRow(4, "–", "–"); validate(d); return; }
+    setRow(3, d.tipp ? fmtE(c.meinCourtageAnteil) + " × 3 %" : "kein Tippgeber", d.tipp ? "− " + fmtE(c.tippgeberAnteil) : fmtE(0));
+    setRow(4, fmtE(c.meinCourtageAnteil) + " − " + fmtE(c.tippgeberAnteil), fmtE(c.rohertrag));
+    validate(d);
+  }
+  function validate(d) {
+    var msg = "";
+    fWert.setAttribute("aria-invalid", fWert.value && !(d.wert > 0) ? "true" : "false");
+    fCourt.setAttribute("aria-invalid", fCourt.value && !(d.courtage > 0 && d.courtage < 100) ? "true" : "false");
+    if (fWert.value && !(d.wert > 0)) msg = "Verkaufswert als Zahl eingeben, z. B. 400.000.";
+    else if (fCourt.value && !(d.courtage > 0 && d.courtage < 100)) msg = "Courtage als Prozentwert eingeben, z. B. 3.";
+    else if (d.courtage > 15) msg = "Courtage über 15 % ist ungewöhnlich. Bitte prüfen.";
+    else if (looksGross(d.courtage)) msg = "Sieht nach brutto aus: " + DEC.format(d.courtage) + " % entspricht " + DEC.format(r2(d.courtage / 1.19)) + " % netto. Bitte netto eintragen.";
+    $("#formMsg").textContent = msg;
+    var ok = !!d.objekt && d.wert > 0 && d.courtage > 0 && d.courtage < 100 && d.anteil !== null && d.tipp !== null && /^\d{4}-\d{2}-\d{2}$/.test(d.datum);
+    $("#saveBtn").disabled = !ok || canWrite === false;
+    return ok;
+  }
+  form.addEventListener("input", updateCalc);
+  form.addEventListener("change", updateCalc);
+  fWert.addEventListener("blur", function () { var v = parseEuro(fWert.value); if (v > 0) fWert.value = DEC.format(v); });
+  fCourt.addEventListener("blur", function () { var v = parsePct(fCourt.value); if (v > 0) fCourt.value = DEC.format(v); });
+  $("#resetBtn").addEventListener("click", function () { if (editing) cancelEdit(); else resetForm(false); });
+  function resetForm(keepDate) {
+    var dt = fDatum.value;
+    form.reset();
+    fDatum.value = keepDate && dt ? dt : todayISO();
+    $("#formMsg").textContent = "";
+    updateCalc();
+  }
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var d = readForm();
+    if (!validate(d)) return;
+    if (!db) { toast("Speichern ist in dieser Ansicht nicht möglich. Öffne das Tool in claude.ai."); return; }
+    var c = calc(d.wert, d.courtage, d.anteil, d.tipp);
+    var isEdit = !!(editing && editing.col === "verkaeufe");
+    var now = new Date().toISOString();
+    var body = {
+      objekt: d.objekt, datum: d.datum, verkaufswert: d.wert, courtageProzent: d.courtage, anteilProzent: d.anteil,
+      tippgeber: d.tipp, tippgeberSatzProzent: d.tipp ? TIPP_SATZ : 0,
+      gesamtcourtage: c.gesamtcourtage, meinCourtageAnteil: c.meinCourtageAnteil, tippgeberAnteil: c.tippgeberAnteil, rohertrag: c.rohertrag,
+      erfasstAm: isEdit && editing.erfasstAm ? editing.erfasstAm : now
+    };
+    if (isEdit) body.geaendertAm = now;
+    var ref = isEdit ? userCol("verkaeufe").doc(editing.id) : userCol("verkaeufe").doc();
+    var btn = $("#saveBtn"); btn.disabled = true; btn.textContent = "Speichert …";
+    write(function () { return ref.set(body); }).then(function () {
+      toast((isEdit ? "Geändert: " : "Gespeichert: ") + d.objekt + " · Rohertrag " + fmtE(c.rohertrag));
+      if (isEdit) cancelEdit(); else { resetForm(true); fObj.focus(); }
+    }).catch(function (err) { $("#formMsg").textContent = writeError(err); })
+      .then(function () { btn.textContent = editing && editing.col === "verkaeufe" ? "Änderung speichern" : "Verkauf speichern"; updateCalc(); });
+  });
+
+  /* ---------- Formular Marktpreiseinschätzung ---------- */
+  var bform = $("#bew");
+  var bName = $("#b-name"), bPreis = $("#b-preis"), bDatum = $("#b-datum");
+  bDatum.value = todayISO();
+  function bewAnteilNow() { return editing && editing.col === "bewertungen" && editing.anteil > 0 ? editing.anteil : settings.bewAnteil; }
+  function readBew() {
+    var std = $("#b-std").checked;
+    return { name: bName.value.trim(), standard: std, netto: std ? settings.bewStandard : parseEuro(bPreis.value), datum: bDatum.value };
+  }
+  function updateBew() {
+    var d = readBew();
+    bPreis.disabled = d.standard || canWrite === false;
+    if (d.standard) bPreis.value = "";
+    $("#b-std-label").innerHTML = "Standard<small>" + esc(DEC.format(settings.bewStandard)) + " € zzgl. MwSt.</small>";
+    var a = bewAnteilNow();
+    $("#b-f1").textContent = d.standard ? "Standardpreis" : "eigener Preis";
+    if (d.netto > 0) {
+      var c = calcBew(d.netto, a);
+      $("#b-v1").textContent = fmtE(c.preisNetto);
+      $("#b-f4").textContent = fmtE(c.preisNetto) + " × " + DEC.format(a) + " %";
+      $("#b-v4").textContent = fmtE(c.ertrag);
+    } else {
+      ["#b-v1", "#b-v4"].forEach(function (s) { $(s).textContent = "–"; });
+      $("#b-f4").textContent = "Preis netto × " + DEC.format(a) + " %";
+    }
+    var msg = "";
+    bPreis.setAttribute("aria-invalid", !d.standard && bPreis.value && !(d.netto > 0) ? "true" : "false");
+    if (!d.standard && bPreis.value && !(d.netto > 0)) msg = "Preis als Zahl eingeben, z. B. 550.";
+    $("#bMsg").textContent = msg;
+    var ok = !!d.name && d.netto > 0 && /^\d{4}-\d{2}-\d{2}$/.test(d.datum);
+    $("#bSaveBtn").disabled = !ok || canWrite === false;
+    return ok;
+  }
+  bform.addEventListener("input", updateBew);
+  bform.addEventListener("change", function (e) { updateBew(); if (e.target && e.target.id === "b-ind") bPreis.focus(); });
+  bPreis.addEventListener("blur", function () { var v = parseEuro(bPreis.value); if (v > 0) bPreis.value = DEC.format(v); });
+  $("#bResetBtn").addEventListener("click", function () { if (editing) cancelEdit(); else resetBew(false); });
+  function resetBew(keepDate) {
+    var dt = bDatum.value;
+    bform.reset();
+    bDatum.value = keepDate && dt ? dt : todayISO();
+    $("#bMsg").textContent = "";
+    updateBew();
+  }
+  bform.addEventListener("submit", function (e) {
+    e.preventDefault();
+    if (!updateBew()) return;
+    var d = readBew();
+    if (!db) { toast("Speichern ist in dieser Ansicht nicht möglich. Öffne das Tool in claude.ai."); return; }
+    var isEdit = !!(editing && editing.col === "bewertungen");
+    var anteil = bewAnteilNow();
+    var now = new Date().toISOString();
+    var c = calcBew(d.netto, anteil);
+    var body = {
+      bezeichnung: d.name, datum: d.datum, standardpreis: d.standard, preisNetto: c.preisNetto, mwstProzent: MWST,
+      preisBrutto: c.preisBrutto, anteilProzent: anteil, ertrag: c.ertrag,
+      erfasstAm: isEdit && editing.erfasstAm ? editing.erfasstAm : now
+    };
+    if (isEdit) body.geaendertAm = now;
+    var ref = isEdit ? userCol("bewertungen").doc(editing.id) : userCol("bewertungen").doc();
+    var btn = $("#bSaveBtn"); btn.disabled = true; btn.textContent = "Speichert …";
+    write(function () { return ref.set(body); }).then(function () {
+      toast((isEdit ? "Geändert: " : "Gespeichert: ") + d.name + " · Auszahlung " + fmtE(c.ertrag));
+      if (isEdit) cancelEdit(); else { resetBew(true); bName.focus(); }
+    }).catch(function (err) { $("#bMsg").textContent = writeError(err); })
+      .then(function () { btn.textContent = editing && editing.col === "bewertungen" ? "Änderung speichern" : "Einschätzung speichern"; updateBew(); });
+  });
+
+  function write(fn) {
+    return fn().catch(function (err) {
+      if (err && err.code === "unavailable") return new Promise(function (res) { setTimeout(res, 600 + Math.random() * 900); }).then(fn);
+      throw err;
+    });
+  }
+  function writeError(err) {
+    var code = err && err.code;
+    if (code === "local") return "Nicht gespeichert: Dein Browser erlaubt hier kein Speichern (z. B. privates Fenster oder voller Speicher).";
+    if (code === "quota_exceeded") return "Nicht gespeichert: Der Speicher dieses Tools ist voll.";
+    if (code === "resource_exhausted") return "Zu viele Anfragen in kurzer Zeit. Bitte gleich noch einmal speichern.";
+    return "Nicht gespeichert: Der Speicher ist gerade nicht erreichbar. Bitte erneut versuchen.";
+  }
+
+  /* ---------- Zeitraum ---------- */
+  var fyear = $("#fl-year"), fmonth = $("#fl-month");
+  function yearsAvailable() {
+    var set = {}; set[new Date().getFullYear()] = 1; if (settings.jahr > 0) set[settings.jahr] = 1;
+    records.concat(bewRecords).forEach(function (r) { var y = r.datum.slice(0, 4); if (/^\d{4}$/.test(y)) set[y] = 1; });
+    return Object.keys(set).sort().reverse();
+  }
+  function fillFilters() {
+    var ys = yearsAvailable();
+    var html = '<option value="alle">Alle Jahre</option>' + ys.map(function (y) { return '<option value="' + y + '">' + y + "</option>"; }).join("");
+    if (fyear.innerHTML !== html) fyear.innerHTML = html;
+    if (filter.year !== "alle" && ys.indexOf(String(filter.year)) < 0) filter.year = "alle";
+    fyear.value = String(filter.year);
+    if (!fmonth.options.length) {
+      fmonth.innerHTML = '<option value="alle">Alle Monate</option>' + MONTHS.map(function (m, i) { return '<option value="' + String(i + 1).padStart(2, "0") + '">' + m + "</option>"; }).join("");
+    }
+    fmonth.value = String(filter.month);
+  }
+  fyear.addEventListener("change", function () { filter.year = fyear.value; rememberView(); renderAll(); });
+  fmonth.addEventListener("change", function () { filter.month = fmonth.value; rememberView(); renderAll(); });
+
+  function inPeriod(r) {
+    if (filter.year !== "alle" && r.datum.slice(0, 4) !== String(filter.year)) return false;
+    if (filter.month !== "alle" && r.datum.slice(5, 7) !== String(filter.month)) return false;
+    return true;
+  }
+  function sorter(st) {
+    return function (a, b) {
+      var x = a[st.key], y = b[st.key], res;
+      res = typeof x === "string" ? x.localeCompare(y, "de") : x - y;
+      if (res === 0) res = a.erfasstAm.localeCompare(b.erfasstAm);
+      return st.dir === "asc" ? res : -res;
+    };
+  }
+  function filteredV() { return records.filter(inPeriod).sort(sorter(sort)); }
+  function filteredB() { return bewRecords.filter(inPeriod).sort(sorter(bsort)); }
+  function filterLabel() {
+    var y = filter.year === "alle" ? "alle Jahre" : String(filter.year);
+    return filter.month !== "alle" ? MONTHS[Number(filter.month) - 1] + " " + y : y;
+  }
+  function sum(list, k) { return r2(list.reduce(function (s, r) { return s + r[k]; }, 0)); }
+
+  function wireSort(tableId, st, render) {
+    document.querySelectorAll("#" + tableId + " th[data-key] button").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var k = b.parentElement.getAttribute("data-key");
+        if (st.key === k) st.dir = st.dir === "asc" ? "desc" : "asc";
+        else { st.key = k; st.dir = (k === "objekt" || k === "bezeichnung") ? "asc" : "desc"; }
+        rememberView(); render();
+      });
+    });
+  }
+  function paintSort(tableId, st) {
+    document.querySelectorAll("#" + tableId + " th[data-key]").forEach(function (th) {
+      var k = th.getAttribute("data-key"), arr = th.querySelector(".arr");
+      if (k === st.key) { th.setAttribute("aria-sort", st.dir === "asc" ? "ascending" : "descending"); arr.textContent = st.dir === "asc" ? "▲" : "▼"; }
+      else { th.removeAttribute("aria-sort"); arr.textContent = ""; }
+    });
+  }
+  wireSort("tV", sort, function () { renderTable(); });
+  wireSort("tB", bsort, function () { renderBew(); });
+
+  /* ---------- Kopf & Zeitraum ---------- */
+  function renderHeader() {
+    var s = settings, y = staffelYear();
+    var inYear = function (r) { return r.datum.slice(0, 4) === String(y); };
+    var yr = records.filter(inYear), yb = bewRecords.filter(inYear);
+    var court = sum(yr, "meinCourtageAnteil");
+    var bewIn = s.bewInStaffel ? (s.bewStaffelBasis === "anteil" ? sum(yb, "ertrag") : sum(yb, "preisNetto")) : 0;
+    $("#totalLabel").textContent = "Provisionsumsatz " + y;
+    $("#pageTitle").textContent = "Provision " + y;
+    $("#totalAll").textContent = fmtE(r2(court + bewIn));
+    $("#totalSplit").textContent = "Courtage " + fmtE(court) + " · Bewertungen " + fmtE(bewIn);
+    $("#totalRoh").textContent = "Rohertrag nach Tippgeber " + fmtE(sum(yr, "rohertrag"));
+    var payout = sum(yb, "ertrag"), vgH = s.bewVerguetung || "separat";
+    $("#totalPayout").hidden = vgH === "staffelsatz";
+    $("#totalPayout").innerHTML = "<span>" + (vgH === "vorschuss" ? "Bewertungen gegen Vorschuss" : "Davon für Schätzungen") + "</span><b>" + esc(fmtE(payout)) + "</b>";
+    var nv = yr.length, nb = yb.length;
+    if (db && !(loadedV && loadedB) && !nv && !nb) $("#totalMeta").innerHTML = "<span>Lade Einträge …</span>";
+    else $("#totalMeta").innerHTML = "<span><b>" + nv + "</b> " + (nv === 1 ? "Verkauf" : "Verkäufe") + "</span><span><b>" + nb + "</b> " + (nb === 1 ? "Einschätzung" : "Einschätzungen") + "</span>";
+  }
+  /* Sortierung auf dem Handy (Tabellenkopf ist dort ausgeblendet) */
+  var BMAP = { datum: "datum", rohertrag: "ertrag", verkaufswert: "preisNetto", objekt: "bezeichnung" };
+  $("#fl-sort").addEventListener("change", function () {
+    var p = this.value.split("|"); if (!p[0]) return;
+    sort.key = p[0]; sort.dir = p[1]; bsort.key = BMAP[p[0]] || "datum"; bsort.dir = p[1];
+    rememberView(); renderTable(); renderBew();
+  });
+  function paintSortSelect() {
+    var v = sort.key + "|" + sort.dir, sel = $("#fl-sort");
+    sel.value = sel.querySelector('option[value="' + v + '"]') ? v : "";
+  }
+  try { if (matchMedia("(min-width: 901px)").matches) $("#stDetails").open = true; } catch (e) {}
+
+  function actCell(col, id, label) {
+    if (!db || canWrite === false) return "";
+    var key = col + "|" + id;
+    if (pendingDelete === key) return '<span class="confirm"><button class="btn small danger" data-del-yes="' + esc(key) + '" type="button">Löschen</button><button class="btn small ghost" data-del-no type="button">Abbrechen</button></span>';
+    return '<span class="rowact"><button class="rowdel" data-edit="' + esc(key) + '" type="button" aria-label="Eintrag ' + esc(label) + ' bearbeiten">Ändern</button>' +
+      '<button class="rowdel" data-del="' + esc(key) + '" type="button" aria-label="Eintrag ' + esc(label) + ' löschen">Löschen</button></span>';
+  }
+  function rowOpen(col, id) { return editing && editing.col === col && editing.id === id ? '<tr class="editing">' : "<tr>"; }
+
+  /* ---------- Verkaufsjournal ---------- */
+  function renderTable() {
+    var list = filteredV();
+    paintSort("tV", sort); paintSortSelect();
+    $("#tbody").innerHTML = list.map(function (r) {
+      return rowOpen("verkaeufe", r.id) +
+        '<td class="l dat">' + fmtDate(r.datum) + '<span class="mi"> · ' + fmtE0(r.verkaufswert) + " · " + fmtP(r.courtageProzent) + " · " + DEC.format(r.anteilProzent) + " %</span></td>" +
+        '<td class="l obj">' + esc(r.objekt) + "</td>" +
+        "<td>" + fmtE(r.verkaufswert) + "</td>" +
+        "<td>" + fmtP(r.courtageProzent) + "</td>" +
+        "<td>" + fmtE(r.gesamtcourtage) + "</td>" +
+        "<td>" + DEC.format(r.anteilProzent) + " %</td>" +
+        '<td class="stf"><span class="mi">Staffel </span>' + fmtE(r.meinCourtageAnteil) + (r.tippgeberAnteil ? '<span class="mi minus"> · Tippgeber − ' + fmtE(r.tippgeberAnteil) + "</span>" : "") + "</td>" +
+        "<td" + (r.tippgeberAnteil ? ' class="minus"' : "") + ">" + (r.tippgeberAnteil ? "− " + fmtE(r.tippgeberAnteil) : '<span class="nil">–</span>') + "</td>" +
+        '<td class="roh">' + fmtE(r.rohertrag) + "</td>" +
+        '<td class="act">' + actCell("verkaeufe", r.id, r.objekt) + "</td></tr>";
+    }).join("");
+    var tsum = sum(list, "tippgeberAnteil");
+    $("#tfoot").innerHTML = list.length ? "<tr>" +
+      '<td class="l" colspan="2">Summe · ' + esc(filterLabel()) + " (" + list.length + ")</td>" +
+      "<td>" + fmtE(sum(list, "verkaufswert")) + "</td><td></td>" +
+      "<td>" + fmtE(sum(list, "gesamtcourtage")) + "</td><td></td>" +
+      "<td>" + fmtE(sum(list, "meinCourtageAnteil")) + "</td>" +
+      "<td>" + (tsum ? "− " : "") + fmtE(tsum) + "</td>" +
+      '<td class="roh">' + fmtE(sum(list, "rohertrag")) + "</td><td></td></tr>" : "";
+    var empty = $("#empty");
+    empty.hidden = !!list.length;
+    if (!list.length) {
+      if (db && !loadedV) empty.innerHTML = "<strong>Lade gespeicherte Verkäufe …</strong>";
+      else if (records.length) empty.innerHTML = "<strong>Keine Verkäufe in " + esc(filterLabel()) + ".</strong>Wähle oben einen anderen Zeitraum.";
+      else empty.innerHTML = "<strong>Noch keine Verkäufe gespeichert.</strong>Trag oben deinen ersten Verkauf ein. Jede Speicherung erzeugt eine neue Zeile.";
+    }
+    $("#sumline").innerHTML = esc(filterLabel()) + ": Staffel-Basis <strong>" + fmtE(sum(list, "meinCourtageAnteil")) + "</strong> · Rohertrag nach Tippgeber <strong>" + fmtE(sum(list, "rohertrag")) + "</strong> · " + plural(list.length, "Verkauf", "Verkäufe");
+    $("#csvBtn").disabled = !list.length;
+  }
+
+  /* ---------- Bewertungsjournal ---------- */
+  function renderBew() {
+    var list = filteredB();
+    paintSort("tB", bsort);
+    $("#bTbody").innerHTML = list.map(function (r) {
+      return rowOpen("bewertungen", r.id) +
+        '<td class="l dat">' + fmtDate(r.datum) + '<span class="mi"> · ' + (r.standardpreis ? "Standard" : "Eigener Preis") + " · netto " + fmtE(r.preisNetto) + "</span></td>" +
+        '<td class="l obj">' + esc(r.bezeichnung) + "</td>" +
+        '<td class="l"><span class="tag' + (r.standardpreis ? "" : " yes") + '">' + (r.standardpreis ? "Standard" : "Eigener Preis") + "</span></td>" +
+        "<td>" + fmtE(r.preisNetto) + "</td>" +
+        "<td>" + fmtE(r.preisBrutto) + "</td>" +
+        "<td>" + DEC.format(r.anteilProzent) + " %</td>" +
+        '<td class="roh">' + fmtE(r.ertrag) + "</td>" +
+        '<td class="act">' + actCell("bewertungen", r.id, r.bezeichnung) + "</td></tr>";
+    }).join("");
+    $("#bTfoot").innerHTML = list.length ? "<tr>" +
+      '<td class="l" colspan="3">Summe · ' + esc(filterLabel()) + " (" + list.length + ")</td>" +
+      "<td>" + fmtE(sum(list, "preisNetto")) + "</td>" +
+      "<td>" + fmtE(sum(list, "preisBrutto")) + "</td><td></td>" +
+      '<td class="roh">' + fmtE(sum(list, "ertrag")) + "</td><td></td></tr>" : "";
+    var empty = $("#bEmpty");
+    empty.hidden = !!list.length;
+    if (!list.length) {
+      if (db && !loadedB) empty.innerHTML = "<strong>Lade gespeicherte Einschätzungen …</strong>";
+      else if (bewRecords.length) empty.innerHTML = "<strong>Keine Einschätzungen in " + esc(filterLabel()) + ".</strong>Wähle oben einen anderen Zeitraum.";
+      else empty.innerHTML = "<strong>Noch keine Marktpreiseinschätzung gespeichert.</strong>Oben auf „Marktpreiseinschätzung“ wechseln: Standardpreis wählen oder eigenen Preis eintragen.";
+    }
+    $("#bSumline").innerHTML = esc(filterLabel()) + ": Staffel-Basis <strong>" + fmtE(sum(list, "preisNetto")) + "</strong> · Auszahlung <strong>" + fmtE(sum(list, "ertrag")) + "</strong> · " + plural(list.length, "Einschätzung", "Einschätzungen") + " · Ø Preis netto " + (list.length ? fmtE(r2(sum(list, "preisNetto") / list.length)) : "–");
+    $("#bCsvBtn").disabled = !list.length;
+  }
+
+  /* ---------- Löschen ---------- */
+  document.addEventListener("click", function (e) {
+    var t = e.target.closest && e.target.closest("button"); if (!t) return;
+    if (t.hasAttribute("data-edit")) { var ep = t.getAttribute("data-edit").split("|"); startEdit(ep[0], ep[1]); }
+    else if (t.hasAttribute("data-del")) { pendingDelete = t.getAttribute("data-del"); renderTable(); renderBew(); var y = document.querySelector("[data-del-yes]"); if (y) y.focus(); }
+    else if (t.hasAttribute("data-del-no")) { pendingDelete = null; renderTable(); renderBew(); }
+    else if (t.hasAttribute("data-del-yes")) {
+      var parts = t.getAttribute("data-del-yes").split("|"), col = parts[0], id = parts[1];
+      if (col !== "verkaeufe" && col !== "bewertungen") return;
+      var src = col === "verkaeufe" ? records : bewRecords;
+      var r = src.filter(function (x) { return x.id === id; })[0];
+      t.disabled = true;
+      write(function () { return userCol(col).doc(id).delete(); }).then(function () {
+        pendingDelete = null; if (editing && editing.id === id) cancelEdit(); toast("Gelöscht: " + (r ? (r.objekt || r.bezeichnung) : "Eintrag"));
+      }).catch(function (err) { pendingDelete = null; renderTable(); renderBew(); toast(writeError(err).replace("Nicht gespeichert", "Nicht gelöscht")); });
+    }
+  });
+
+  /* ---------- Bearbeiten ---------- */
+  function startEdit(col, id) {
+    if (col !== "verkaeufe" && col !== "bewertungen") return;
+    var src = col === "verkaeufe" ? records : bewRecords;
+    var r = src.filter(function (x) { return x.id === id; })[0];
+    if (!r) return;
+    editing = { col: col, id: id, erfasstAm: r.erfasstAm, anteil: r.anteilProzent };
+    pendingDelete = null;
+    if (col === "verkaeufe") {
+      showTab("v");
+      form.reset();
+      fObj.value = r.objekt;
+      fWert.value = DEC.format(r.verkaufswert);
+      fCourt.value = DEC.format(r.courtageProzent);
+      $("#f-anteil-" + (r.anteilProzent === 100 ? "100" : "50")).checked = true;
+      $("#f-tipp-" + (r.tippgeber ? "ja" : "nein")).checked = true;
+      fDatum.value = r.datum;
+      $("#saveBtn").textContent = "Änderung speichern";
+      updateCalc();
+    } else {
+      showTab("b");
+      bform.reset();
+      bName.value = r.bezeichnung;
+      var std = r.standardpreis && r.preisNetto === settings.bewStandard;
+      $(std ? "#b-std" : "#b-ind").checked = true;
+      updateBew();
+      if (!std) bPreis.value = DEC.format(r.preisNetto);
+      bDatum.value = r.datum;
+      $("#bSaveBtn").textContent = "Änderung speichern";
+      updateBew();
+    }
+    $("#editText").textContent = "Bearbeiten: " + (r.objekt || r.bezeichnung) + " · " + fmtDate(r.datum);
+    $("#editBar").hidden = false;
+    renderTable(); renderBew();
+    var reduce = false;
+    try { reduce = matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) {}
+    try { $("#erfassung").scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" }); } catch (e) {}
+    try { (col === "verkaeufe" ? fObj : bName).focus({ preventScroll: true }); } catch (e) {}
+  }
+  function cancelEdit() {
+    var was = editing;
+    editing = null;
+    $("#editBar").hidden = true;
+    $("#saveBtn").textContent = "Verkauf speichern";
+    $("#bSaveBtn").textContent = "Einschätzung speichern";
+    if (was) { if (was.col === "verkaeufe") resetForm(false); else resetBew(false); }
+    renderTable(); renderBew();
+  }
+  $("#editCancel").addEventListener("click", cancelEdit);
+
+  /* ---------- Staffel-Panel ---------- */
+  function staffelYear() { return filter.year !== "alle" ? Number(filter.year) : (settings.jahr > 0 ? settings.jahr : new Date().getFullYear()); }
+
+  function renderStaffel() {
+    var s = settings, y = staffelYear();
+    $("#setup").hidden = !(db && uid && loadedS && !(s.vorschussMonat > 0));
+    $("#stYear").textContent = y;
+    var inYear = function (r) { return r.datum.slice(0, 4) === String(y); };
+    var yearRecs = records.filter(inYear), yearBew = bewRecords.filter(inYear);
+    var nAvg = yearRecs.length, volAll = sum(yearRecs, "verkaufswert");
+    $("#stAvg").hidden = !nAvg;
+    if (nAvg) {
+      $("#stAvgV").textContent = fmtE0(r2(volAll / nAvg));
+      $("#stAvgS").innerHTML = "<span>aus " + plural(nAvg, "Verkauf", "Verkäufen") + " " + y + "</span> · <span>Volumen " + esc(fmtE0(volAll)) + "</span>";
+    }
+    var bewErtrag = sum(yearBew, "ertrag");
+    var courtBasis = sum(yearRecs, "meinCourtageAnteil");
+    var tippSum = sum(yearRecs, "tippgeberAnteil");
+    var bewPreis = sum(yearBew, "preisNetto");
+    var bewIn = s.bewInStaffel ? (s.bewStaffelBasis === "anteil" ? bewErtrag : bewPreis) : 0;
+    var verg = s.bewVerguetung || "separat";
+    var bewOwn = verg !== "staffelsatz";
+    var bewPaid = verg === "vorschuss" ? bewErtrag : 0;
+    var U = r2(courtBasis + bewIn);
+    // Provision aus der Staffel bei Provisionsumsatz u. Direkt ausgezahlte Bewertungen heben nur die Stufe, der Satz gilt dann auf den Courtage-Anteil.
+    var provPart = function (u) {
+      // Stufe aus dem Provisionsumsatz vor Tippgeber; ausgezahlt wird der Satz auf den Betrag nach Tippgeber
+      var base = Math.max(0, u - (bewOwn ? bewIn : 0) - tippSum);
+      if (u <= 0) return 0;
+      if (s.logik !== "stufenweise") return r2(base * rateFor(u, s) / 100);
+      return r2(provision(u, s) * base / u);
+    };
+    $("#stBasisNote").textContent = "Basis: Courtage-Anteil vor Tippgeber, netto" + (s.bewInStaffel ? ", inkl. Bewertungen" : "");
+    var prov = provPart(U);
+    var idx = tierIdx(U, s);
+    var rates = [s.satz1, s.satz2, s.satz3];
+    var Uabz = r2(U - tippSum);
+    var provAbz = provPart(Uabz);
+    var idxAbz = tierIdx(Uabz, s);
+    var vorschussJahr = r2(s.vorschussAnzahl * s.vorschussMonat);
+    var saldo = r2(prov + bewPaid - vorschussJahr);
+    var plusBox = $("#totalPlusBox");
+    plusBox.hidden = !(vorschussJahr > 0 && (records.length || bewRecords.length));
+    // Oben: Plus nach Tippgeber plus separat ausgezahlte Bewertungsanteile
+    var plusAll = r2(saldo + (verg === "separat" ? bewErtrag : 0));
+    plusBox.className = "fig fig-plus " + (plusAll >= 0 ? "pos" : "neg");
+    $("#totalPlus").textContent = (plusAll >= 0 ? "+ " : "− ") + fmtE(Math.abs(plusAll));
+    var zielRaw = breakEvenFn(function (u) { return provPart(u) + bewPaid; }, vorschussJahr);
+    var ziel = zielRaw || 0;
+    // Break-even laut Plan: Jahresvorschuss ÷ Staffelsatz, ohne Tippgeber und Bewertungen (z. B. 31.200 € ÷ 15 % = 208.000 €)
+    var zielPlanRaw = breakEvenFn(function (u) { return provision(u, s); }, vorschussJahr);
+    var zielPlan = zielPlanRaw || 0;
+    // Break-even einfrieren: Wert im Moment des Erreichens (chronologisch nach Datum, dann Erfassung)
+    var zielFix = null;
+    if (vorschussJahr > 0 && saldo >= 0) {
+      var payAt = function (u, t, bi, bp) {
+        if (u <= 0) return bp;
+        var base = Math.max(0, u - (bewOwn ? bi : 0) - t);
+        return (s.logik !== "stufenweise" ? r2(base * rateFor(u, s) / 100) : r2(provision(u, s) * base / u)) + bp;
+      };
+      var ev = yearRecs.map(function (r) { return { d: r.datum, e: r.erfasstAm, c: r.meinCourtageAnteil, t: r.tippgeberAnteil, bi: 0, bp: 0 }; })
+        .concat(yearBew.map(function (r) {
+          var bi = s.bewInStaffel ? (s.bewStaffelBasis === "anteil" ? r.ertrag : r.preisNetto) : 0;
+          return { d: r.datum, e: r.erfasstAm, c: 0, t: 0, bi: bi, bp: verg === "vorschuss" ? r.ertrag : 0 };
+        }))
+        .sort(function (a, b) { return a.d < b.d ? -1 : a.d > b.d ? 1 : (a.e < b.e ? -1 : a.e > b.e ? 1 : 0); });
+      var cU = 0, cT = 0, cB = 0, cP = 0;
+      for (var i = 0; i < ev.length; i++) {
+        cU = r2(cU + ev[i].c + ev[i].bi); cT = r2(cT + ev[i].t); cB = r2(cB + ev[i].bi); cP = r2(cP + ev[i].bp);
+        if (payAt(cU, cT, cB, cP) >= vorschussJahr) {
+          var fT = cT, fB = cB, fP = cP;
+          zielFix = breakEvenFn(function (u) { return payAt(u, fT, fB, fP); }, vorschussJahr);
+          break;
+        }
+      }
+      if (zielFix === null) zielFix = ziel;
+    }
+    var zShow = saldo < 0 ? ziel : (zielFix || 0);
+
+    var max = Math.max(s.grenze2 * 1.25, U * 1.08, ziel * 1.1);
+    var pct = function (v) { return Math.max(0, Math.min(100, v / max * 100)); };
+    $("#mTrack").innerHTML =
+      '<span class="seg-bg" style="left:0;width:' + pct(s.grenze1) + '%;background:var(--seg1)"></span>' +
+      '<span class="seg-bg" style="left:' + pct(s.grenze1) + "%;width:" + (pct(s.grenze2) - pct(s.grenze1)) + '%;background:var(--seg2)"></span>' +
+      '<span class="seg-bg" style="left:' + pct(s.grenze2) + '%;right:0;background:var(--seg3)"></span>' +
+      '<span class="fill" style="width:' + pct(U) + '%"></span>' +
+      '<span class="tick" style="left:calc(' + pct(s.grenze1) + '% - 1px)"></span>' +
+      '<span class="tick" style="left:calc(' + pct(s.grenze2) + '% - 1px)"></span>' +
+      (zShow > 0 ? (saldo < 0 ? '<span class="goal" style="left:calc(' + pct(zShow) + '% - 1px)"></span>' : '<span class="goal done" style="left:calc(' + pct(zShow) + '% - 6px)"></span>') : "");
+    $("#mRates").innerHTML =
+      '<span style="left:' + pct(s.grenze1) / 2 + '%">' + DEC.format(s.satz1) + " %</span>" +
+      '<span style="left:' + (pct(s.grenze1) + pct(s.grenze2)) / 2 + '%">' + DEC.format(s.satz2) + " %</span>" +
+      '<span style="left:' + (pct(s.grenze2) + 100) / 2 + '%">' + DEC.format(s.satz3) + " %</span>";
+    $("#mTicks").innerHTML =
+      '<span style="left:' + pct(s.grenze1) + '%">' + teur(s.grenze1) + "</span>" +
+      '<span style="left:' + pct(s.grenze2) + '%">' + teur(s.grenze2) + "</span>";
+    $("#mGoal").hidden = !(zShow > 0);
+    $("#mGoal").innerHTML = zShow > 0 ? '<span class="goal ' + (saldo < 0 ? "pending" : "done") + '" style="left:' + Math.max(26, Math.min(74, pct(zShow))) + '%">' +
+      (saldo < 0
+        ? '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 1.5v13" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M4.3 2.2h8.6l-2.1 3.1 2.1 3.1H4.3z" fill="currentColor"/></svg>Noch <b>' + esc(fmtE0(r2(zShow - U))) + "</b> bis Break-even"
+        : '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="8" fill="currentColor"/><path d="M4.6 8.3l2.2 2.2 4.7-4.8" fill="none" style="stroke:var(--pos-soft)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>Break-even geschafft · ' + esc(fmtE0(zShow))) +
+      "</span>" : "";
+
+    $("#stKv").innerHTML =
+      "<dt>Provisionsumsatz " + y + "<small>ohne Tippgeber-Abzug</small></dt><dd>" + fmtE(U) + "<small>Courtage-Anteil " + fmtE(courtBasis) + " (" + plural(yearRecs.length, "Verkauf", "Verkäufe") + ")" + (s.bewInStaffel ? " + Bewertungen " + fmtE(bewIn) : "") + "</small></dd>" +
+      '<dt>Aktuelle Stufe</dt><dd><span class="pill">' + DEC.format(rates[idx]) + " %</span><small>" + (s.logik === "gesamt" ? "Satz gilt auf den gesamten Umsatz" : "stufenweise berechnet") + "</small></dd>" +
+      "<dt>Provision " + (bewOwn ? "Verkäufe " : "") + "lt. Staffel</dt><dd>" + fmtE(prov) + "<small>" + DEC.format(rates[idx]) + " % auf " + fmtE(r2(courtBasis - tippSum)) + " nach Tippgeber</small></dd>" +
+      "<dt>" + (verg === "staffelsatz" ? "Bewertungsanteil " : "Auszahlung Bewertungen ") + y + "</dt><dd>" + fmtE(bewErtrag) + "<small>" + plural(yearBew.length, "Einschätzung", "Einschätzungen") + " · " + (verg === "separat" ? DEC.format(s.bewAnteil) + " %" : verg === "vorschuss" ? "gegen Vorschuss angerechnet" : "Staffelsatz darauf") + "</small></dd>" +
+      "<dt>Vorschuss " + y + "</dt><dd>" + fmtE(vorschussJahr) + "<small>" + DEC.format(s.vorschussAnzahl) + " × " + fmtE(s.vorschussMonat) + "</small></dd>" +
+      (vorschussJahr > 0 ? '<dt class="sum">' + (saldo < 0 ? "Noch bis Break-even · " + fmtE0(vorschussJahr) : "Break-even erreicht · über Vorschuss") + '</dt><dd class="sum ' + (saldo >= 0 ? "pos" : "neg") + '">' + (saldo >= 0 ? "+ " : "− ") + fmtE(Math.abs(saldo)) + "<small>Provision " + fmtE(r2(prov + bewPaid)) + " von " + fmtE(vorschussJahr) + " reingeholt</small></dd>"
+        : '<dt class="sum">Break-even</dt><dd class="sum">Vorschuss fehlt<small>oben eintragen</small></dd>') +
+      (vorschussJahr > 0 && zielRaw === null ? "<dt>Break-even</dt><dd>nicht erreichbar<small>Staffel deckt " + fmtE(vorschussJahr) + " nicht</small></dd>" : "");
+
+
+    /* Kopf: nächstes Ziel, das Geld bewegt */
+    var steps = [];
+    if (vorschussJahr > 0 && zielRaw !== null && saldo < 0) steps.push({ at: ziel, t: "Break-even " + fmtE0(vorschussJahr) + " bei " + fmtE0(ziel), k: "Break-even", be: true });
+    if (U < s.grenze1) steps.push({ at: s.grenze1, t: "Stufe " + DEC.format(s.satz2) + " % ab " + fmtE0(s.grenze1), k: "Stufe 2 · " + DEC.format(s.satz2) + " %", lo: s.satz1, hi: s.satz2 });
+    if (U < s.grenze2) steps.push({ at: s.grenze2, t: "Stufe " + DEC.format(s.satz3) + " % ab " + fmtE0(s.grenze2), k: "Stufe 3 · " + DEC.format(s.satz3) + " %", lo: s.satz2, hi: s.satz3 });
+    steps.sort(function (a, b) { return a.at - b.at; });
+    var nx = steps[0], nEl = $("#totalNext");
+    if (!nx) { nEl.innerHTML = "<b>Stufe 3 · " + esc(DEC.format(s.satz3)) + " % erreicht</b>"; }
+    else {
+      var restN = r2(nx.at - U);
+      var extra = "";
+      if (!nx.be && s.logik === "gesamt") {
+        var baseAt = Math.max(0, nx.at - (bewOwn ? bewIn : 0) - tippSum);
+        extra = " · Stufensprung + " + fmtE0(r2(baseAt * (nx.hi - nx.lo) / 100));
+      }
+      nEl.innerHTML = "<b>" + fmtE(restN) + " bis " + esc(nx.k) + "</b>";
+    }
+    nEl.hidden = !(records.length || bewRecords.length);
+
+    /* Motivation: Was bis zur nächsten Schwelle fehlt */
+    var perEuro = (s.motCourtage / 100) * (s.motAnteil / 100);
+    var perObj = r2(s.motObjekt * perEuro);
+    var marks = [
+      { label: "Stufe 2 · " + DEC.format(s.satz2) + " %", at: s.grenze1 },
+      { label: "Stufe 3 · " + DEC.format(s.satz3) + " %", at: s.grenze2 }
+    ];
+    if (vorschussJahr > 0 && zShow > 0) marks.push({ label: "Break-even: Vorschuss " + fmtE0(vorschussJahr) + " gedeckt", at: zShow, goal: true });
+    marks.sort(function (a, b) { return a.at - b.at; });
+    // Nur den laufenden Status zeigen: nächste offene Schwelle, sonst die höchste erreichte Stufe
+    var openMarks = marks.filter(function (mk) { return mk.goal ? saldo < 0 : U < mk.at; });
+    var stages = marks.filter(function (mk) { return !mk.goal; });
+    var showMarks = openMarks.length ? [openMarks[0]] : (stages.length ? [stages[stages.length - 1]] : marks.slice(-1));
+    $("#stGoalsH").textContent = openMarks.length ? "Was bis zur nächsten Schwelle fehlt" : "Aktueller Status";
+    $("#stGoals").innerHTML = showMarks.map(function (mk) {
+      var target = mk.goal ? Math.max(mk.at, ziel) : mk.at;
+      var rest = r2(target - U), done = mk.goal ? saldo >= 0 : rest <= 0;
+      var provAt = mk.goal ? vorschussJahr : provPart(mk.at);
+      var fill = target > 0 ? Math.max(0, Math.min(100, U / target * 100)) : 100;
+      var body;
+      if (done) body = '<p class="g-done">Erreicht · ' + (mk.goal ? "Provision " + fmtE(r2(prov + bewPaid)) + " − Vorschuss " + fmtE(vorschussJahr) + " = + " + fmtE(r2(prov + bewPaid - vorschussJahr)) : "Satz " + mk.label.split("· ")[1] + " aktiv") + "</p>";
+      else {
+        var vol = perEuro > 0 ? Math.ceil(rest / perEuro) : 0;
+        var objs = s.motObjekt > 0 && vol > 0 ? Math.ceil(vol / s.motObjekt) : 0;
+        body = '<div class="g-stats">' +
+          "<div><span>noch Provisionsumsatz</span><b>" + fmtE(rest) + "</b></div>" +
+          "<div><span>noch Objektvolumen</span><b>" + (perEuro > 0 ? fmtE0(vol) : "–") + "</b></div>" +
+          "<div><span>≈ Objekte à " + teur(s.motObjekt) + "</span><b>" + (objs || "–") + "</b></div>" +
+          "</div>";
+      }
+      return '<li class="g' + (done ? " is-done" : "") + (mk.goal ? " is-goal" : "") + '">' +
+        '<div class="g-head"><span class="g-label">' + mk.label + '</span><span class="g-at">' + (mk.goal ? (saldo >= 0 ? "erreicht bei " + fmtE0(mk.at) + " · fest" : "ab " + fmtE0(mk.at) + " Provisionsumsatz · bewegt sich mit jedem Tippgeber") : "ab " + fmtE0(mk.at)) + "</span></div>" +
+        '<div class="g-bar" aria-hidden="true"><span style="width:' + fill.toFixed(1) + '%"></span></div>' + body + "</li>";
+    }).join("");
+  }
+
+  /* ---------- Vorschuss einrichten ---------- */
+  $("#setup").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var v = parseEuro($("#su-v").value), a = parsePct($("#su-a").value);
+    if (!(v > 0)) { $("#su-msg").textContent = "Vorschuss als Zahl eingeben, z. B. 2.400."; return; }
+    if (!(a >= 1 && a <= 14)) { $("#su-msg").textContent = "Zahlungen pro Jahr: 1 bis 14."; return; }
+    $("#su-msg").textContent = "";
+    var next = {};
+    Object.keys(DEFAULTS).forEach(function (k) { next[k] = settings[k]; });
+    next.vorschussMonat = v; next.vorschussAnzahl = a; next.geaendertAm = new Date().toISOString();
+    var btn = $("#su-save"); btn.disabled = true;
+    write(function () { return settingsRef().set(next); }).then(function () {
+      settings = Object.assign({}, DEFAULTS, next); delete settings.geaendertAm;
+      fillSettingsForm(); renderAll(); toast("Vorschuss gespeichert: " + DEC.format(a) + " × " + fmtE(v));
+    }).catch(function (err) { $("#su-msg").textContent = writeError(err); }).then(function () { btn.disabled = false; });
+  });
+
+  /* ---------- Annahmen ---------- */
+  var sf = $("#settingsForm");
+  function fillSettingsForm(src) {
+    var s = src || settings;
+    $("#s-jahr").value = s.jahr > 0 ? String(s.jahr) : "";
+    $("#s-jahr").placeholder = String(new Date().getFullYear());
+    $("#s-vorschuss").value = DEC.format(s.vorschussMonat);
+    $("#s-vanz").value = DEC.format(s.vorschussAnzahl);
+    $("#s-g1").value = DEC.format(s.grenze1);
+    $("#s-g2").value = DEC.format(s.grenze2);
+    $("#s-p1").value = DEC.format(s.satz1);
+    $("#s-p2").value = DEC.format(s.satz2);
+    $("#s-p3").value = DEC.format(s.satz3);
+    $("#s-mc").value = DEC.format(s.motCourtage);
+    $("#s-ma").value = DEC.format(s.motAnteil);
+    $("#s-mo").value = DEC.format(s.motObjekt);
+    $("#s-bpreis").value = DEC.format(s.bewStandard);
+    $("#s-banteil").value = DEC.format(s.bewAnteil);
+    $("#s-logik-" + (s.logik === "stufenweise" ? "stufen" : "gesamt")).checked = true;
+    $("#s-bewst-" + (!s.bewInStaffel ? "nein" : s.bewStaffelBasis === "anteil" ? "anteil" : "preis")).checked = true;
+    var vg = ["separat", "vorschuss", "staffelsatz"].indexOf(s.bewVerguetung) >= 0 ? s.bewVerguetung : "separat";
+    $("#s-bewdir-" + vg).checked = true;
+  }
+  sf.addEventListener("input", function () { settingsDirty = true; });
+  sf.addEventListener("change", function () { settingsDirty = true; });
+  $("#settingsReset").addEventListener("click", function () {
+    fillSettingsForm(DEFAULTS); settingsDirty = true;
+    $("#settingsMsg").textContent = "Standardwerte eingesetzt. Zum Übernehmen speichern.";
+  });
+  sf.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var next = {
+      jahr: $("#s-jahr").value.trim() ? Number($("#s-jahr").value.trim()) : null,
+      vorschussMonat: parseEuro($("#s-vorschuss").value), vorschussAnzahl: parsePct($("#s-vanz").value),
+      grenze1: parseEuro($("#s-g1").value), grenze2: parseEuro($("#s-g2").value),
+      satz1: parsePct($("#s-p1").value), satz2: parsePct($("#s-p2").value), satz3: parsePct($("#s-p3").value),
+      bewStandard: parseEuro($("#s-bpreis").value), bewAnteil: parsePct($("#s-banteil").value),
+      motCourtage: parsePct($("#s-mc").value), motAnteil: parsePct($("#s-ma").value), motObjekt: parseEuro($("#s-mo").value),
+      logik: sf.querySelector('input[name="logik"]:checked').value,
+      bewInStaffel: sf.querySelector('input[name="bewst"]:checked').value !== "nein",
+      bewStaffelBasis: sf.querySelector('input[name="bewst"]:checked').value === "anteil" ? "anteil" : "preis",
+      bewVerguetung: sf.querySelector('input[name="bewdir"]:checked').value
+    };
+    var numKeys = ["vorschussMonat", "vorschussAnzahl", "grenze1", "grenze2", "satz1", "satz2", "satz3", "bewStandard", "bewAnteil", "motCourtage", "motAnteil", "motObjekt"];
+    if (numKeys.some(function (k) { return !(next[k] >= 0); })) { $("#settingsMsg").textContent = "Bitte nur Zahlen eintragen."; return; }
+    if (!(next.grenze2 > next.grenze1)) { $("#settingsMsg").textContent = "Stufe 3 muss über Stufe 2 beginnen."; return; }
+    if (next.jahr !== null && !(Number.isInteger(next.jahr) && next.jahr >= 2000 && next.jahr <= 2100)) { $("#settingsMsg").textContent = "Jahr bitte vierstellig eingeben, z. B. 2026."; return; }
+    if (next.vorschussAnzahl > 14) { $("#settingsMsg").textContent = "Anzahl Zahlungen: höchstens 14."; return; }
+    if (next.bewAnteil > 100 || next.motAnteil > 100) { $("#settingsMsg").textContent = "Ein Anteil darf höchstens 100 % sein."; return; }
+    $("#settingsMsg").textContent = "";
+    settings = Object.assign({}, DEFAULTS, next);
+    settingsDirty = false;
+    renderAll(); updateBew();
+    if (!db) { toast("Annahmen gelten nur für diese Sitzung."); return; }
+    next.geaendertAm = new Date().toISOString();
+    write(function () { return settingsRef().set(next); })
+      .then(function () { toast("Annahmen gespeichert. Gilt für neue Einträge, gespeicherte bleiben unverändert."); })
+      .catch(function (err) { $("#settingsMsg").textContent = writeError(err); });
+  });
+
+  /* ---------- CSV ---------- */
+  function csvNum(v) { return (Math.round(v * 100) / 100).toFixed(2).replace(".", ","); }
+  // Deutsches Zahlenformat mit Tausenderpunkten, z. B. 1.600.000,00 € bzw. 3,5 %
+  function csvEur(v) { return EUR.format(r2(v || 0)).replace(/[\u00a0\u202f]/g, " "); }
+  function csvPct(v) { return DEC.format(v || 0) + " %"; }
+  function csvText(t) {
+    t = String(t);
+    if (/^[=+\-@\t\r]/.test(t)) t = "'" + t;
+    return /[;"\n\r]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
+  }
+  function csvFile(rows) { return "﻿" + rows.map(function (r) { return r.join(";"); }).join("\r\n") + "\r\n"; }
+  function csvSuffix() { return (filter.year !== "alle" ? "_" + filter.year : "_alle") + (filter.month !== "alle" ? "-" + filter.month : "") + ".csv"; }
+  function buildCsvV(list) {
+    var rows = [["Datum", "Objekt", "Verkaufswert", "Maklercourtage netto", "Gesamtcourtage netto", "Mein Anteil", "Mein Courtage-Anteil", "Tippgeber", "Tippgeber-Anteil", "Rohertrag"]];
+    list.forEach(function (r) {
+      rows.push([fmtDate(r.datum), csvText(r.objekt), csvEur(r.verkaufswert), csvPct(r.courtageProzent), csvEur(r.gesamtcourtage), csvPct(r.anteilProzent), csvEur(r.meinCourtageAnteil), r.tippgeber ? "Ja" : "Nein", csvEur(r.tippgeberAnteil), csvEur(r.rohertrag)]);
+    });
+    rows.push(["Summe", csvText(filterLabel()), csvEur(sum(list, "verkaufswert")), "", csvEur(sum(list, "gesamtcourtage")), "", csvEur(sum(list, "meinCourtageAnteil")), "", csvEur(sum(list, "tippgeberAnteil")), csvEur(sum(list, "rohertrag"))]);
+    return csvFile(rows);
+  }
+  function buildCsvB(list) {
+    var rows = [["Datum", "Objekt / Auftraggeber", "Preisart", "Preis netto", "MwSt.", "Preis brutto", "Mein Anteil", "Auszahlung"]];
+    list.forEach(function (r) {
+      rows.push([fmtDate(r.datum), csvText(r.bezeichnung), r.standardpreis ? "Standard" : "Eigener Preis", csvEur(r.preisNetto), csvPct(MWST), csvEur(r.preisBrutto), csvPct(r.anteilProzent), csvEur(r.ertrag)]);
+    });
+    rows.push(["Summe", csvText(filterLabel()), "", csvEur(sum(list, "preisNetto")), "", csvEur(sum(list, "preisBrutto")), "", csvEur(sum(list, "ertrag"))]);
+    return csvFile(rows);
+  }
+  function exportCsv(filename, data, count, what) {
+    if (!downloads) { if (!fileDownload(filename, data, "text/csv;charset=utf-8")) showCsvBox(data); else toast("CSV exportiert: " + plural(count, what[0], what[1])); return; }
+    downloads.save({ filename: filename, data: data }).then(function (res) {
+      if (res && res.status === "saved") toast("CSV exportiert: " + plural(count, what[0], what[1]));
+    }).catch(function (err) {
+      var c = err && err.code;
+      if (c === "declined") toast("Export abgebrochen");
+      else if (c === "rate_limited") toast("Ein Speichern-Dialog ist schon offen.");
+      else showCsvBox(data);
+    });
+  }
+  $("#csvBtn").addEventListener("click", function () { var l = filteredV(); if (l.length) exportCsv("verkaeufe" + csvSuffix(), buildCsvV(l), l.length, ["Verkauf", "Verkäufe"]); });
+  $("#bCsvBtn").addEventListener("click", function () { var l = filteredB(); if (l.length) exportCsv("bewertungen" + csvSuffix(), buildCsvB(l), l.length, ["Einschätzung", "Einschätzungen"]); });
+  function fileDownload(name, data, type) {
+    try {
+      if (window.top !== window.self) return false;
+      var standalone = (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) || window.navigator.standalone === true;
+      if (standalone && navigator.canShare && typeof File === "function") {
+        var file = new File([data], name, { type: type });
+        if (navigator.canShare({ files: [file] })) { navigator.share({ files: [file], title: name }).catch(function () {}); return true; }
+      }
+      var url = URL.createObjectURL(new Blob([data], { type: type }));
+      var a = document.createElement("a"); a.href = url; a.download = name; document.body.appendChild(a); a.click();
+      setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 1000);
+      return true;
+    } catch (e) { return false; }
+  }
+  function showCsvBox(data) { $("#csvText").value = data.replace(/^﻿/, ""); $("#csvBox").hidden = false; $("#csvText").focus(); }
+  $("#csvClose").addEventListener("click", function () { $("#csvBox").hidden = true; });
+  $("#csvCopy").addEventListener("click", function () {
+    var ta = $("#csvText");
+    try {
+      navigator.clipboard.writeText(ta.value).then(function () { toast("CSV kopiert"); }, function () { ta.select(); toast("Text markiert. Mit Strg/Cmd + C kopieren."); });
+    } catch (e) { ta.select(); toast("Text markiert. Mit Strg/Cmd + C kopieren."); }
+  });
+
+  /* ---------- UI-Helfer ---------- */
+  var toastTimer = null;
+  function toast(msg) { var t = $("#toast"); t.textContent = msg; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.hidden = true; }, 3400); }
+  function setStatus(msg) { var s = $("#status"); if (msg) { s.textContent = msg; s.hidden = false; } else s.hidden = true; }
+
+  function renderAll() { fillFilters(); renderHeader(); renderTable(); renderBew(); renderStaffel(); }
+  function applyWriteState() {
+    var off = canWrite === false;
+    [form, bform, sf].forEach(function (f) { f.querySelectorAll("input, button").forEach(function (el) { if (el.id !== "resetBtn" && el.id !== "bResetBtn") el.disabled = off; }); });
+    if (off) setStatus("Nur Lesezugriff: Einträge erfassen und löschen kann nur der Inhaber dieses Tools.");
+    updateCalc(); updateBew();
+  }
+
+  /* ---------- Start ---------- */
+  showTab(tab);
+  fillSettingsForm();
+  updateCalc();
+  updateBew();
+  renderAll();
+
+  /* ---------- Datensicherung ---------- */
+  var pendingImport = null;
+  function backupInfo() {
+    var n = Object.keys(memStore.docs);
+    var nv = n.filter(function (k) { return k.indexOf("/verkaeufe/") > 0; }).length, nb = n.filter(function (k) { return k.indexOf("/bewertungen/") > 0; }).length;
+    $("#bkInfo").textContent = plural(nv, "Verkauf", "Verkäufe") + " · " + plural(nb, "Einschätzung", "Einschätzungen") + " auf diesem Gerät";
+  }
+  $("#bkSave").addEventListener("click", function () {
+    var data = JSON.stringify({ app: "courtage-tracker-blanko", version: 1, exportiertAm: new Date().toISOString(), docs: memStore.docs }, null, 1);
+    var name = "courtage-sicherung_" + todayISO() + ".json";
+    if (downloads) {
+      downloads.save({ filename: name, data: data }).then(function () { toast("Sicherung heruntergeladen"); }, function (err) { if (!(err && err.code === "declined")) { $("#csvHint").textContent = "Kopiere den Inhalt und speichere ihn als .json-Datei."; showCsvBox(data); } });
+    } else if (fileDownload(name, data, "application/json")) toast("Sicherung heruntergeladen");
+    else { $("#csvHint").textContent = "Der direkte Download ist hier nicht verfügbar. Kopiere den Inhalt und speichere ihn als .json-Datei."; showCsvBox(data); }
+  });
+  $("#bkFile").addEventListener("change", function (e) {
+    var f = e.target.files && e.target.files[0]; $("#bkMsg").textContent = "";
+    if (!f) return;
+    var rd = new FileReader();
+    rd.onload = function () {
+      try {
+        var j = JSON.parse(String(rd.result));
+        if (!j || j.app !== "courtage-tracker-blanko" || typeof j.docs !== "object") throw new Error();
+        var keys = Object.keys(j.docs);
+        var nv = keys.filter(function (k) { return k.indexOf("/verkaeufe/") > 0; }).length, nb = keys.filter(function (k) { return k.indexOf("/bewertungen/") > 0; }).length;
+        pendingImport = j.docs;
+        $("#bkConfirmText").textContent = "Sicherung mit " + plural(nv, "Verkauf", "Verkäufen") + " und " + plural(nb, "Einschätzung", "Einschätzungen") + " gefunden. Einspielen ersetzt die aktuellen Daten in diesem Browser.";
+        $("#bkConfirm").hidden = false;
+      } catch (err) { $("#bkMsg").textContent = "Diese Datei ist keine Sicherung aus diesem Tracker."; }
+      e.target.value = "";
+    };
+    rd.readAsText(f);
+  });
+  $("#bkNo").addEventListener("click", function () { pendingImport = null; $("#bkConfirm").hidden = true; });
+  $("#bkYes").addEventListener("click", function () {
+    if (!pendingImport) return;
+    var prev = memStore; memStore = { docs: clone(pendingImport) };
+    if (!saveStore()) { memStore = prev; $("#bkMsg").textContent = "Einspielen nicht möglich: Dein Browser erlaubt hier kein Speichern."; return; }
+    pendingImport = null; $("#bkConfirm").hidden = true; settingsDirty = false;
+    settings = Object.assign({}, DEFAULTS);
+    notifyAll(); toast("Sicherung eingespielt");
+  });
+
+  /* ---------- Lokal starten ---------- */
+  memStore = loadStore();
+  db = localDb; uid = "lokal";
+  if (!storageOk) setStatus("Dein Browser erlaubt hier kein dauerhaftes Speichern (z. B. privates Fenster). Einträge gehen beim Schließen verloren.");
+  listeners.push(backupInfo);
+  userCol("verkaeufe").onSnapshot(function (snap) {
+    records = snap.docs.map(function (d) { return rec(Object.assign({ id: d.id }, d.data())); });
+    loadedV = true; renderAll();
+  });
+  userCol("bewertungen").onSnapshot(function (snap) {
+    bewRecords = snap.docs.map(function (d) { return brec(Object.assign({ id: d.id }, d.data())); });
+    loadedB = true; renderAll();
+  });
+  settingsRef().onSnapshot(function (snap) {
+    loadedS = true;
+    if (snap.exists) {
+      var d = snap.data() || {}, n = {};
+      Object.keys(DEFAULTS).forEach(function (k) { if (d[k] !== undefined && d[k] !== null) n[k] = d[k]; });
+      settings = Object.assign({}, DEFAULTS, n);
+    } else settings = Object.assign({}, DEFAULTS);
+    if (!settingsDirty) fillSettingsForm();
+    renderAll(); updateBew();
+  });
+  backupInfo();
+  try { window.addEventListener("storage", function (e) { if (e.key === LS_KEY) { memStore = loadStore(); notifyAll(); } }); } catch (e) {}
+  if (window.claude && typeof window.claude.use === "function") {
+    try { window.claude.use("downloads").then(function (d) { downloads = d; }, function () {}); } catch (e) {}
+  }
+})();
+</script>
+
+<script>
+  // Offline-Start und dauerhafter Speicher (soweit der Browser es erlaubt)
+  if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost" || location.hostname === "127.0.0.1")) {
+    window.addEventListener("load", function () { navigator.serviceWorker.register("sw.js").catch(function () {}); });
+  }
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(function () {}); } catch (e) {}
+</script>
+</body>
+</html>
